@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "autosesemenyek-advcrawler"
+version = "0.1.0"
+description = "Calendar crawler for M-Ring and Euroring pages using Camoufox"
+authors = ["Speeder <speeder@example.com>"]
+readme = "README.md"
+packages = [{ include = "event_crawler", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+camoufox = "^0.4.11"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.12.8"
+
+[tool.poetry.scripts]
+crawl = "event_crawler.main:main"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
