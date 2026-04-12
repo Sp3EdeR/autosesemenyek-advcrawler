@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
-
 from playwright.async_api import Page
 
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult

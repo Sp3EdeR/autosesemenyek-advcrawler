@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import argparse
+import asyncio
 import json
 import re
 from pathlib import Path
@@ -71,12 +71,12 @@ class CrawlOrchestrator:
         payload: CrawlerResult = []
         for crawler_id, crawler_rows in results:
             for row in crawler_rows:
-                prefixed_row = {
-                    f"{crawler_id}_{key}": value for key, value in sorted(row.items(), key=lambda item: item[0])
-                }
+                prefixed_row = { f"{crawler_id}_{key}": value for key, value in sorted(
+                        row.items(), key=lambda item: item[0]
+                ) }
                 payload.append(prefixed_row)
 
-        payload.sort(key=lambda row: json.dumps(row, sort_keys=True, ensure_ascii=False, default=str))
+        payload.sort(key=lambda r: json.dumps(r, sort_keys=True, ensure_ascii=False, default=str))
 
         self.output.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
