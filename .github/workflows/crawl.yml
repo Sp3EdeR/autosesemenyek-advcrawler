@@ -43,7 +43,7 @@ jobs:
 
           def auth_get(url, *args, **kwargs):
               headers = dict(kwargs.pop("headers", {}))
-              headers.setdefault("Authorization", f"Bearer {token}")
+              headers.setdefault("Authorization", f"token {token}")
               headers.setdefault("Accept", "application/vnd.github+json")
               kwargs["headers"] = headers
               return original_get(url, *args, **kwargs)
