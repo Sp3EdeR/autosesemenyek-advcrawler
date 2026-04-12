@@ -13,6 +13,9 @@ from event_crawler.crawler_base import BaseCrawler, CrawlerResult
 from event_crawler.euroring_crawler import EuroringCrawler
 from event_crawler.m_ring_crawler import MRingCrawler
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+CRAWL_RETRIES = 3
 
 class CrawlOrchestrator:
     """Coordinate all crawler executions and write the merged JSON output."""
@@ -41,19 +44,44 @@ class CrawlOrchestrator:
         return [crawler_id for crawler_id in ids if self._crawler_filter.search(crawler_id)]
 
     async def _run_single_crawler(self, browser: Any, crawler_id: str) -> tuple[str, CrawlerResult]:
-        async with self._page_creation_lock:
-            context = await browser.new_context()
-            # Camoufox can hang intermittently on concurrent page creation.
-            # Serialize context/page startup while keeping crawl work parallel.
-            print(f"[{crawler_id}] Creating page...")
-            page = await context.new_page()
-        print(f"[{crawler_id}] Starting crawl...")
-        try:
-            result = await self._crawlers[crawler_id].crawl(page)
-            print(f"[{crawler_id}] Finished crawl, found {len(result)} items.")
-            return crawler_id, result
-        finally:
-            await context.close()
+        crawler = self._crawlers[crawler_id]
+
+        for i in range(1, CRAWL_RETRIES + 1):
+            context = None
+            try:
+                async with self._page_creation_lock:
+                    print(
+                        f"[{crawler_id}] Creating browser context, attempt {i}/{CRAWL_RETRIES}..."
+                    )
+                    context = await browser.new_context()
+                    # Camoufox can hang intermittently on concurrent page creation.
+                    # Serialize context/page startup while keeping crawl work parallel.
+                    print(f"[{crawler_id}] Creating page, attempt {i}/{CRAWL_RETRIES}...")
+                    page = await context.new_page()
+                    print(f"[{crawler_id}] Releasing startup lock.")
+
+                print(f"[{crawler_id}] Starting crawl, attempt {i}/{CRAWL_RETRIES}...")
+                result = await crawler.crawl(page)
+                print(f"[{crawler_id}] Finished crawl, found {len(result)} items.")
+                return crawler_id, result
+            except Exception as exc:
+                print(
+                    f"[{crawler_id}] Crawl attempt {i}/{CRAWL_RETRIES} failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                if isinstance(exc, PlaywrightTimeoutError) and i < CRAWL_RETRIES:
+                    print(f"[{crawler_id}] Got timeout, attempt {i}/{CRAWL_RETRIES}, retrying...")
+                    await asyncio.sleep(1)
+                else:
+                    raise
+            finally:
+                if context is not None:
+                    print(
+                        f"[{crawler_id}] Closing browser context, attempt {i}/{CRAWL_RETRIES}..."
+                    )
+                    await context.close()
+
+        raise RuntimeError(f"[{crawler_id}] Crawl exited retry loop unexpectedly.")
 
     async def run(self) -> None:
         """Run both source crawlers and persist a flattened output payload."""

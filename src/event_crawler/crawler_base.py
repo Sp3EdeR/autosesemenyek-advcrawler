@@ -29,6 +29,8 @@ HUNGARIAN_MONTHS = {
     "december": 12,
 }
 
+CONTENT_TIMEOUT_MS = 15000
+PAGE_RETRIES = 2
 
 class BaseCrawler(ABC, Generic[TPageData]):
     """Abstract base class for calendar event crawlers."""
@@ -74,13 +76,17 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
     async def crawl(self, page: Page) -> CrawlerResult:
         """Run the full crawl loop: load, extract, paginate, and aggregate."""
-        await page.goto(self.url, wait_until="domcontentloaded")
+        print(f"[{self.crawler_id}] Navigating to {self.url}...")
+        await page.goto(self.url, wait_until="commit", timeout=CONTENT_TIMEOUT_MS)
+        print(f"[{self.crawler_id}] Page committed, waiting for it to be ready...")
         await self.wait_until_ready(page)
-
+        print(f"[{self.crawler_id}] Initial page marked ready.")
         aggregate = self.build_initial_result()
         page_number = 1
         for _ in range(self.max_pages):
+            print(f"[{self.crawler_id}] Processing page {page_number}...")
             if await self.is_page_empty(page):
+                print(f"[{self.crawler_id}] Page {page_number} is empty; stopping crawl.")
                 break
 
             page_data = await self.extract_page_data(page)
@@ -88,6 +94,7 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
             moved = await self._activate_next_page(page, preferred_selectors=self.next_selectors)
             if not moved:
+                print(f"[{self.crawler_id}] No further pages detected after page {page_number}.")
                 break
 
             page_number += 1
@@ -176,15 +183,26 @@ class BaseCrawler(ABC, Generic[TPageData]):
         """Click next and wait until the calendar signature changes."""
         next_button = await self._find_next_page_activator(page, preferred_selectors)
         if not next_button:
+            print(f"[{self.crawler_id}] Next-page control not found or not enabled.")
             return False
 
         signature_before = await self._get_calendar_signature(page)
-        await next_button.click()
+        for i in range(1, PAGE_RETRIES + 1):
+            print(f"[{self.crawler_id}] Clicking next-page control, attempt {i}/{PAGE_RETRIES}...")
+            await next_button.click()
 
-        for _ in range(150):
-            await page.wait_for_timeout(100)
-            signature_after = await self._get_calendar_signature(page)
-            if signature_after != signature_before:
-                return True
+            check_interval_ms = 100
+            for _ in range(int(CONTENT_TIMEOUT_MS / check_interval_ms)):
+                await page.wait_for_timeout(check_interval_ms)
+                signature_after = await self._get_calendar_signature(page)
+                if signature_after != signature_before:
+                    return True
 
-        return False
+            if PAGE_RETRIES <= i:
+                print(
+                    f"[{self.crawler_id}] Timed out waiting for next page content to change, "
+                    f"attempt {i}/{PAGE_RETRIES}, giving up."
+                )
+                raise TimeoutError(f"Next page did not load in time for {self.crawler_id}.")
+
+            print(f"[{self.crawler_id}] Timed out waiting for the next page, retrying...")
