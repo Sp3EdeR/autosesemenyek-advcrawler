@@ -19,7 +19,6 @@ jobs:
         with:
           ref: crawled
           path: crawled
-          fetch-depth: 0
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
@@ -34,6 +33,7 @@ jobs:
         run: |
           poetry run python - <<'PY'
           import os
+          from unittest.mock import patch
 
           import requests
           from camoufox.pkgman import CamoufoxFetcher
@@ -48,8 +48,8 @@ jobs:
               kwargs["headers"] = headers
               return original_get(url, *args, **kwargs)
 
-          requests.get = auth_get
-          CamoufoxFetcher().install()
+          with patch("camoufox.pkgman.requests.get", side_effect=auth_get):
+              CamoufoxFetcher().install()
           PY
       - name: Run crawler
         run: poetry run python -m event_crawler.main --output crawled/events.json
