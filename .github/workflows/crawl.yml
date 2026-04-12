@@ -13,30 +13,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Checkout crawled branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: crawled
           path: crawled
+          fetch-depth: 0
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: poetry
       - name: Install Poetry
-        run: pipx install poetry
+        run: python -m pip install --upgrade pip poetry
       - name: Install dependencies
         run: poetry install --no-interaction
       - name: Fetch Camoufox browser
-        run: poetry run python -m camoufox fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          poetry run python - <<'PY'
+          import os
+
+          import requests
+          from camoufox.pkgman import CamoufoxFetcher
+
+          token = os.environ["GITHUB_TOKEN"]
+          original_get = requests.get
+
+          def auth_get(url, *args, **kwargs):
+              headers = dict(kwargs.pop("headers", {}))
+              headers.setdefault("Authorization", f"Bearer {token}")
+              headers.setdefault("Accept", "application/vnd.github+json")
+              kwargs["headers"] = headers
+              return original_get(url, *args, **kwargs)
+
+          requests.get = auth_get
+          CamoufoxFetcher().install()
+          PY
       - name: Run crawler
         run: poetry run python -m event_crawler.main --output crawled/events.json
-      - name: Push crawler output to crawled branch
-        uses: actions-js/push@v1.5
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: crawled
-          directory: crawled
-          force: true
-          amend: true
-          message: "Update crawled data"
+      - name: Commit and push crawler output
+        run: |
+          set -euo pipefail
+          git -C crawled config user.name "github-actions[bot]"
+          git -C crawled config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C crawled add events.json
+          if git -C crawled diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git -C crawled commit -m "Update crawled data"
+          git -C crawled push origin HEAD:crawled

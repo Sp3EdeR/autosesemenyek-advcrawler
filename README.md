@@ -11,7 +11,7 @@ The crawler uses:
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12
 - Poetry
 
 ## Setup
@@ -51,4 +51,4 @@ Output files are generated in the project root:
 
 - The crawler advances page-by-page using each calendar's right-arrow next button.
 - It stops when a loaded page is fully empty (no visible event markers/content), not just when a specific extraction has no matches.
-- In CI, the GitHub Actions workflow runs on `ubuntu-latest` and uploads JSON files as build artifacts.
+- In CI, the GitHub Actions workflow runs on `ubuntu-latest` with Python 3.12 and pushes the generated JSON to the `crawled` branch.

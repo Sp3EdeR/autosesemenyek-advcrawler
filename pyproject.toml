@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{ include = "event_crawler", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 camoufox = "^0.4.11"
 
 [tool.poetry.group.dev.dependencies]
@@ -22,7 +22,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

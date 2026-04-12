@@ -6,11 +6,10 @@ import re
 import unicodedata
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from playwright.async_api import Locator, Page
 
-TPageData = TypeVar("TPageData")
 CrawlerRow = dict[str, Any]
 CrawlerResult = list[CrawlerRow]
 
@@ -30,7 +29,7 @@ HUNGARIAN_MONTHS = {
 }
 
 
-class BaseCrawler(ABC, Generic[TPageData]):
+class BaseCrawler[TPageData](ABC):
     """Abstract base class for calendar event crawlers."""
 
     def __init__(self, url: str, crawler_id: str) -> None:
