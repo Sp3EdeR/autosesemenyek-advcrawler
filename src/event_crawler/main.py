@@ -91,9 +91,13 @@ class CrawlOrchestrator:
             return
 
         async with AsyncCamoufox(headless=True) as browser:
-            results = await asyncio.gather(
-                *[self._run_single_crawler(browser, crawler_id) for crawler_id in selected_ids],
-            )
+            #results = await asyncio.gather(
+            #    *[self._run_single_crawler(browser, crawler_id) for crawler_id in selected_ids],
+            #)
+            # Temp test: run crawlers sequentially to avoid errors.
+            results: list[tuple[str, CrawlerResult]] = []
+            for crawler_id in selected_ids:
+                results.append(await self._run_single_crawler(browser, crawler_id))
 
         # Merge results, and ensure stable sorted output
         payload: CrawlerResult = []
