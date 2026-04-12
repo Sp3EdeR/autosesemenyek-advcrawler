@@ -12,4 +12,5 @@ venv/
 .DS_Store
 *.log
 *.json
+dist/
 !.github/
