@@ -1,9 +1,7 @@
 # autosesemenyek-advcrawler
 
-Crawler project for extracting event data from:
-
-- https://m-ring.hu/
-- https://euroring.hu/esemenynaptar2/
+Crawler project for extracting event data from various sources for the
+[Autós Események](https://github.com/Sp3EdeR/autosesemenyek) project.
 
 The crawler uses:
 
@@ -14,13 +12,10 @@ The crawler uses:
 - Python 3.11+
 - Poetry
 
-## Setup
+## Setting up and running the crawler
 
-Recommended in-source installation setting in the project directory:
-
-```bash
-poetry config virtualenvs.in-project true --local
-```
+If you want to develop or debug this project, it is recommended to follow the directions below, in
+the [Developing and debugging section](#developing-and-debugging).
 
 Create the virtual env and add needed dependencies to it:
 
@@ -29,7 +24,7 @@ poetry install
 poetry run python -m camoufox fetch
 ```
 
-## Run
+Run the crawler:
 
 ```bash
 poetry run crawl
@@ -38,17 +33,62 @@ poetry run crawl
 or
 
 ```bash
-poetry run python -m autosesemenyek_advcrawler.main
+poetry run python -m event_crawler.main
 ```
 
-Output files are generated in the project root:
+By default, the output is generated at `$CWD/crawled.json`.
 
-- `m-ring_race.json`
-- `m-ring.json`
-- `euroring.json`
+For more information about available command-line options, run:
 
-## Notes
+```bash
+poetry run crawl --help
+```
 
-- The crawler advances page-by-page using each calendar's right-arrow next button.
-- It stops when a loaded page is fully empty (no visible event markers/content), not just when a specific extraction has no matches.
-- In CI, the GitHub Actions workflow runs on `ubuntu-latest` and uploads JSON files as build artifacts.
+## Developing and debugging
+
+First, set the created virtual environment's location to be within the project folder with the
+following command. Run this command inside the `autosesemenyek-advcrawler` directory.
+
+```bash
+poetry config virtualenvs.in-project true --local
+```
+
+After this, you can install Poetry using the process defined in the
+[Setting up and running the crawler](#setting-up-and-running-the-crawler). There is no need to run
+the crawler.
+
+Use the following Visual Studio Code launch configuration if you use this IDE, or convert this
+launch configuration to your favourite IDE's configuration. This configuration creates its output
+under the `crawled` subdirectory.
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Event Crawler",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "module": "event_crawler.main",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "args": [
+        "--output",
+        "${workspaceFolder}/crawled/events.json",
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
+```
+
+## Project outputs
+
+This project has an automatic GitHub actions job set up to run crawling jobs regularly. See the
+latest data here:
+
+* https://raw.githubusercontent.com/Sp3EdeR/autosesemenyek-advcrawler/refs/heads/crawled/events.json

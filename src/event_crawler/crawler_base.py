@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Generic, TypeVar
 
-from playwright.async_api import Locator, Page
+from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
 
 TPageData = TypeVar("TPageData")
 CrawlerRow = dict[str, Any]
@@ -187,22 +187,15 @@ class BaseCrawler(ABC, Generic[TPageData]):
             return False
 
         signature_before = await self._get_calendar_signature(page)
-        for i in range(1, PAGE_RETRIES + 1):
-            print(f"[{self.crawler_id}] Clicking next-page control, attempt {i}/{PAGE_RETRIES}...")
-            await next_button.click()
+        print(f"[{self.crawler_id}] Clicking next-page control...")
+        await next_button.click()
 
-            check_interval_ms = 100
-            for _ in range(int(CONTENT_TIMEOUT_MS / check_interval_ms)):
-                await page.wait_for_timeout(check_interval_ms)
-                signature_after = await self._get_calendar_signature(page)
-                if signature_after != signature_before:
-                    return True
+        check_interval_ms = 100
+        for _ in range(int(CONTENT_TIMEOUT_MS / check_interval_ms)):
+            await page.wait_for_timeout(check_interval_ms)
+            signature_after = await self._get_calendar_signature(page)
+            if signature_after != signature_before:
+                return True
 
-            if PAGE_RETRIES <= i:
-                print(
-                    f"[{self.crawler_id}] Timed out waiting for next page content to change, "
-                    f"attempt {i}/{PAGE_RETRIES}, giving up."
-                )
-                raise TimeoutError(f"Next page did not load in time for {self.crawler_id}.")
-
-            print(f"[{self.crawler_id}] Timed out waiting for the next page, retrying...")
+        print(f"[{self.crawler_id}] Timed out waiting for next page content to change.")
+        raise PlaywrightTimeoutError(f"Next page did not load in time for {self.crawler_id}.")
