@@ -45,7 +45,7 @@ class CrawlOrchestrator:
         _load_crawler_modules()
         return {
             crawler_id: crawler_cls()
-            for crawler_id, crawler_cls in sorted(BaseCrawler.registry.items())
+            for crawler_id, crawler_cls in sorted(BaseCrawler.get_registry().items())
         }
 
     @classmethod

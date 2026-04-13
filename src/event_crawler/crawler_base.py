@@ -7,14 +7,13 @@ import re
 import unicodedata
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Any, Callable, ClassVar, Generic, TypeVar, cast
+from typing import Any, Annotated, Callable, ClassVar, cast
 
 from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
 
-TPageData = TypeVar("TPageData")
 CrawlerRow = dict[str, Any]
 CrawlerResult = list[CrawlerRow]
-CrawlerFactory = Callable[[], "BaseCrawler[Any]"]
+CrawlerFactory = Callable[[], "BaseCrawler"]
 
 HUNGARIAN_MONTHS = {
     "januar": 1,
@@ -34,23 +33,27 @@ HUNGARIAN_MONTHS = {
 CONTENT_TIMEOUT_MS = 15000
 PAGE_RETRIES = 2
 
-class BaseCrawler(ABC, Generic[TPageData]):
+class BaseCrawler(ABC):
     """Abstract base class for calendar event crawlers."""
 
-    # Class variable to be overridden by subclasses with a unique identifier
-    crawler_id: ClassVar[str]
+    crawler_id: Annotated[ClassVar[str],
+        "Unique identifier for the crawler. Override in each subclass."]
 
-    # Class variable to be overridden by subclasses with the crawler URL
-    url: ClassVar[str]
+    url: Annotated[ClassVar[str],
+        "URL of the crawler's target page. Override in each subclass."]
 
-    # Default page limit, override in a subclass when a crawler needs a different cap
-    max_pages: ClassVar[int] = 30
+    max_pages: Annotated[ClassVar[int],
+        "Maximum number of pages to crawl. Override in a subclass if needed."] = 30
 
-    # Class variable to store the registry of all crawler implementations
-    registry: ClassVar[dict[str, CrawlerFactory]] = {}
+    __registry: Annotated[ClassVar[dict[str, CrawlerFactory]],
+        "Registry of all crawler implementations. Automatically populated."] = {}
+    
+    @classmethod
+    def get_registry(cls) -> dict[str, CrawlerFactory]:
+        return cls.__registry
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        # Register the given subclass in the crawler registry if it's not abstract
+        """Automatically register non-abstract subclasses in the crawler registry."""
         super().__init_subclass__(**kwargs)
         if inspect.isabstract(cls):
             return
@@ -63,39 +66,41 @@ class BaseCrawler(ABC, Generic[TPageData]):
         if not url:
             raise TypeError(f"{cls.__name__} must define url")
 
-        if crawler_id in BaseCrawler.registry:
+        if crawler_id in BaseCrawler.__registry:
             raise ValueError(f"Duplicate crawler_id registered: {crawler_id}")
 
-        BaseCrawler.registry[crawler_id] = cast(CrawlerFactory, cls)
+        BaseCrawler.__registry[crawler_id] = cast(CrawlerFactory, cls)
+
+    async def wait_until_ready(self, page: Page) -> None:
+        """Wait until the page is ready for interaction after navigation or pagination.
+
+        By default, this waits for the page's ``DOMContentLoaded`` load state. Override if needed.
+        """
+        await page.wait_for_load_state("domcontentloaded", timeout=CONTENT_TIMEOUT_MS)
+
+    async def is_page_empty(self, page: Page) -> bool:
+        """Returns whether the currently visible calendar page has no events.
+        
+        When returning True, the crawler will stop loading new pages. Override to stop on empty
+        pages, and when the next button is always active.
+        """
+        return False
 
     @property
     @abstractmethod
     def next_selectors(self) -> list[str]:
+        """Return a list of CSS selectors to find the next-page control, in order of preference."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def page_content_selectors(self) -> list[str]:
+        """Return a list of CSS selectors whose content should be used to detect page changes."""
         raise NotImplementedError
 
     @abstractmethod
-    async def wait_until_ready(self, page: Page) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def is_page_empty(self, page: Page) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def extract_page_data(self, page: Page) -> TPageData:
-        raise NotImplementedError
-
-    @abstractmethod
-    def build_initial_result(self) -> CrawlerResult:
-        raise NotImplementedError
-
-    @abstractmethod
-    def append_page_data(self, aggregate: CrawlerResult, page_data: TPageData) -> None:
+    async def extract_page_data(self, page: Page) -> CrawlerResult:
+        """Extract event data from the current page and return it as a list of dicts."""
         raise NotImplementedError
 
     def finalize_result(self, aggregate: CrawlerResult) -> CrawlerResult:
@@ -109,7 +114,7 @@ class BaseCrawler(ABC, Generic[TPageData]):
         print(f"[{self.crawler_id}] Page committed, waiting for it to be ready...")
         await self.wait_until_ready(page)
         print(f"[{self.crawler_id}] Initial page marked ready.")
-        aggregate = self.build_initial_result()
+        aggregate = []
         page_number = 1
         for _ in range(type(self).max_pages):
             print(f"[{self.crawler_id}] Processing page {page_number}...")
@@ -118,7 +123,7 @@ class BaseCrawler(ABC, Generic[TPageData]):
                 break
 
             page_data = await self.extract_page_data(page)
-            self.append_page_data(aggregate, page_data)
+            aggregate.extend(page_data)
 
             moved = await self._activate_next_page(page, preferred_selectors=self.next_selectors)
             if not moved:
@@ -132,12 +137,14 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
     @staticmethod
     def _normalize_text_for_match(text: str) -> str:
+        """Normalize text for more reliable matching: casefold and remove diacritics."""
         lowered = text.casefold()
         normalized = unicodedata.normalize("NFD", lowered)
         return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
 
     @staticmethod
     def _collapse_whitespace(text: str) -> str:
+        """Collapse all sequences of whitespace characters to a single space and trim."""
         return " ".join((text or "").replace("\xa0", " ").split())
 
     @staticmethod
@@ -194,7 +201,15 @@ class BaseCrawler(ABC, Generic[TPageData]):
         page: Page,
         preferred_selectors: list[str],
     ) -> Locator | None:
-        """Find the first visible and enabled next-page control."""
+        """Find the first visible and enabled next-page control.
+
+        Args:
+            page: Playwright page instance to operate on.
+            preferred_selectors: List of CSS selectors to find the next-page control, in order of preference.
+
+        Returns:
+            Locator for the next-page control, or None if not found or not enabled.
+        """
         for selector in reversed(preferred_selectors):
             locator = page.locator(selector)
             buttons = await locator.all()
@@ -207,8 +222,23 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
         return None
 
-    async def _activate_next_page(self, page: Page, preferred_selectors: list[str]) -> bool:
-        """Click next and wait until the calendar signature changes."""
+    async def _activate_next_page(
+            self,
+            page: Page,
+            preferred_selectors: list[str],
+            click_options: dict[str, Any] | None = None,
+    ) -> bool:
+        """Click next and wait until the calendar signature changes.
+
+        Args:
+            page: Playwright page instance to operate on.
+            preferred_selectors: List of CSS selectors to find the next-page control.
+            click_options: Locator.click arguments to customize the click behavior.
+
+        Returns:
+            True if the next-page control was clicked and the calendar content changed;
+            False if no visible, enabled next-page control was found.
+        """
         next_button = await self._find_next_page_activator(page, preferred_selectors)
         if not next_button:
             print(f"[{self.crawler_id}] Next-page control not found or not enabled.")
@@ -216,7 +246,7 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
         signature_before = await self._get_calendar_signature(page)
         print(f"[{self.crawler_id}] Clicking next-page control...")
-        await next_button.click()
+        await next_button.click(**(click_options or {}))
 
         check_interval_ms = 100
         for _ in range(int(CONTENT_TIMEOUT_MS / check_interval_ms)):

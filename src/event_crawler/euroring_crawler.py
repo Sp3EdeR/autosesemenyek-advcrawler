@@ -7,7 +7,7 @@ from playwright.async_api import Page
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult
 
 
-class EuroringCrawler(BaseCrawler[CrawlerResult]):
+class EuroringCrawler(BaseCrawler):
     """Crawler implementation for extracting Euroring event dates."""
 
     crawler_id = "euroring"
@@ -20,10 +20,6 @@ class EuroringCrawler(BaseCrawler[CrawlerResult]):
     @property
     def page_content_selectors(self) -> list[str]:
         return [ ".mec-calendar" ]
-
-    async def wait_until_ready(self, page: Page) -> None:
-        await page.wait_for_selector(".mec-calendar", timeout=15000)
-        await page.wait_for_timeout(1000)
 
     async def is_page_empty(self, page: Page) -> bool:
         """Check whether the visible Euroring month container has event markers."""
@@ -48,13 +44,6 @@ class EuroringCrawler(BaseCrawler[CrawlerResult]):
             ".mec-single-event-novel"
         ).count() > 0
         return not event_markers
-
-    def build_initial_result(self) -> CrawlerResult:
-        return []
-
-    def append_page_data(self, aggregate: CrawlerResult, page_data: CrawlerResult) -> None:
-        """Merge one page's categorized rows into aggregate."""
-        aggregate.extend(page_data)
 
     def finalize_result(self, aggregate: CrawlerResult) -> CrawlerResult:
         # Deduplicate by full row value

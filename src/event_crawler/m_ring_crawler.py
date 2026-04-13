@@ -5,7 +5,7 @@ from playwright.async_api import Page
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult
 
 
-class MRingCrawler(BaseCrawler[CrawlerResult]):
+class MRingCrawler(BaseCrawler):
     """Crawler implementation for extracting M-Ring event dates."""
 
     crawler_id = "m-ring"
@@ -19,10 +19,6 @@ class MRingCrawler(BaseCrawler[CrawlerResult]):
     def page_content_selectors(self) -> list[str]:
         return [ ".jet-calendar" ]
 
-    async def wait_until_ready(self, page: Page) -> None:
-        await page.wait_for_selector(".jet-calendar .jet-calendar-week__day-date", timeout=15000)
-        await page.wait_for_timeout(1000)
-
     async def is_page_empty(self, page: Page) -> bool:
         """Check whether the currently displayed calendar month has any events."""
         has_event_cells = await page.locator("td.has-events").count() > 0
@@ -30,13 +26,6 @@ class MRingCrawler(BaseCrawler[CrawlerResult]):
             ".jet-calendar-week__event, .jet-calendar-list__event, .has-events"
         ).count() > 0
         return not (has_event_cells or has_event_like_nodes)
-
-    def build_initial_result(self) -> CrawlerResult:
-        return []
-
-    def append_page_data(self, aggregate: CrawlerResult, page_data: CrawlerResult) -> None:
-        """Merge one calendar page worth of rows into aggregate."""
-        aggregate.extend(page_data)
 
     async def extract_page_data(self, page: Page) -> CrawlerResult:
         """Extract M-Ring trackday and race dates from the active month."""
