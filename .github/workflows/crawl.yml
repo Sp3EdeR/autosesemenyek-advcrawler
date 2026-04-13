@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  POETRY_VERSION: "2.3.4"
+
 jobs:
   crawl:
     runs-on: ubuntu-latest
@@ -19,8 +22,23 @@ jobs:
         with:
           ref: crawled
           path: crawled
+      - name: Cache Poetry installation
+        id: poetry-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/poetry
+            ~/.local/venv
+            ~/.local/VERSION
+          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}
+      - name: Add Poetry to PATH
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install Poetry
-        run: pipx install poetry
+        if: steps.poetry-cache.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
