@@ -4,14 +4,12 @@ from playwright.async_api import Page
 
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult
 
-M_RING_URL = "https://m-ring.hu/"
-
 
 class MRingCrawler(BaseCrawler[CrawlerResult]):
     """Crawler implementation for extracting M-Ring event dates."""
 
-    def __init__(self) -> None:
-        super().__init__(url=M_RING_URL, crawler_id="m-ring")
+    crawler_id = "m-ring"
+    url = "https://m-ring.hu/"
 
     @property
     def next_selectors(self) -> list[str]:

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
+import pkgutil
 import re
 import sys
 import os
@@ -13,14 +15,22 @@ from typing import Any
 from camoufox.async_api import AsyncCamoufox
 
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult
-from event_crawler.euroring_crawler import EuroringCrawler
-from event_crawler.m_ring_crawler import MRingCrawler
 
 from playwright.async_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError
 
 CRAWL_RETRIES = 3
 RETRY_TIMEOUT_S = 1
 CLOSE_TIMEOUT_S = 5
+
+
+def _load_crawler_modules() -> None:
+    package_name = __package__ or "event_crawler"
+    package_dir = Path(__file__).resolve().parent
+
+    for module_info in pkgutil.iter_modules([str(package_dir)]):
+        module_name = module_info.name
+        if module_name.endswith("_crawler") and module_name != "crawler_base":
+            importlib.import_module(f"{package_name}.{module_name}")
 
 class CrawlOrchestrator:
     """Coordinate all crawler executions and write the merged JSON output."""
@@ -32,9 +42,10 @@ class CrawlOrchestrator:
 
     @staticmethod
     def _build_crawler_registry() -> dict[str, BaseCrawler[Any]]:
+        _load_crawler_modules()
         return {
-            "m-ring": MRingCrawler(),
-            "euroring": EuroringCrawler(),
+            crawler_id: crawler_cls()
+            for crawler_id, crawler_cls in sorted(BaseCrawler.registry.items())
         }
 
     @classmethod

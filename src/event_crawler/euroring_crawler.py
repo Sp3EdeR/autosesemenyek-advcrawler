@@ -6,14 +6,12 @@ from playwright.async_api import Page
 
 from event_crawler.crawler_base import BaseCrawler, CrawlerResult
 
-EURO_RING_URL = "https://euroring.hu/esemenynaptar2/"
-
 
 class EuroringCrawler(BaseCrawler[CrawlerResult]):
     """Crawler implementation for extracting Euroring event dates."""
 
-    def __init__(self) -> None:
-        super().__init__(url=EURO_RING_URL, crawler_id="euroring")
+    crawler_id = "euroring"
+    url = "https://euroring.hu/esemenynaptar2/"
 
     @property
     def next_selectors(self) -> list[str]:
@@ -71,7 +69,7 @@ class EuroringCrawler(BaseCrawler[CrawlerResult]):
         scripts = page.locator(".mec-calendar-day script")
         for script_idx in range(await scripts.count()):
             script = scripts.nth(script_idx)
-            payload = (await script.text_content()).strip() or ""
+            payload = ((await script.text_content()) or "").strip()
             if not payload:
                 continue
 

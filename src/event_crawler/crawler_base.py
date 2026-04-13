@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import re
 import unicodedata
 from abc import ABC, abstractmethod
 from datetime import date
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, ClassVar, Generic, TypeVar, cast
 
 from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
 
 TPageData = TypeVar("TPageData")
 CrawlerRow = dict[str, Any]
 CrawlerResult = list[CrawlerRow]
+CrawlerFactory = Callable[[], "BaseCrawler[Any]"]
 
 HUNGARIAN_MONTHS = {
     "januar": 1,
@@ -35,10 +37,36 @@ PAGE_RETRIES = 2
 class BaseCrawler(ABC, Generic[TPageData]):
     """Abstract base class for calendar event crawlers."""
 
-    def __init__(self, url: str, crawler_id: str) -> None:
-        self.url = url
-        self.crawler_id = crawler_id
-        self.max_pages = 30
+    # Class variable to be overridden by subclasses with a unique identifier
+    crawler_id: ClassVar[str]
+
+    # Class variable to be overridden by subclasses with the crawler URL
+    url: ClassVar[str]
+
+    # Default page limit, override in a subclass when a crawler needs a different cap
+    max_pages: ClassVar[int] = 30
+
+    # Class variable to store the registry of all crawler implementations
+    registry: ClassVar[dict[str, CrawlerFactory]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Register the given subclass in the crawler registry if it's not abstract
+        super().__init_subclass__(**kwargs)
+        if inspect.isabstract(cls):
+            return
+
+        crawler_id = getattr(cls, "crawler_id", "")
+        if not crawler_id:
+            raise TypeError(f"{cls.__name__} must define crawler_id")
+
+        url = getattr(cls, "url", "")
+        if not url:
+            raise TypeError(f"{cls.__name__} must define url")
+
+        if crawler_id in BaseCrawler.registry:
+            raise ValueError(f"Duplicate crawler_id registered: {crawler_id}")
+
+        BaseCrawler.registry[crawler_id] = cast(CrawlerFactory, cls)
 
     @property
     @abstractmethod
@@ -76,14 +104,14 @@ class BaseCrawler(ABC, Generic[TPageData]):
 
     async def crawl(self, page: Page) -> CrawlerResult:
         """Run the full crawl loop: load, extract, paginate, and aggregate."""
-        print(f"[{self.crawler_id}] Navigating to {self.url}...")
-        await page.goto(self.url, wait_until="commit", timeout=CONTENT_TIMEOUT_MS)
+        print(f"[{self.crawler_id}] Navigating to {type(self).url}...")
+        await page.goto(type(self).url, wait_until="commit", timeout=CONTENT_TIMEOUT_MS)
         print(f"[{self.crawler_id}] Page committed, waiting for it to be ready...")
         await self.wait_until_ready(page)
         print(f"[{self.crawler_id}] Initial page marked ready.")
         aggregate = self.build_initial_result()
         page_number = 1
-        for _ in range(self.max_pages):
+        for _ in range(type(self).max_pages):
             print(f"[{self.crawler_id}] Processing page {page_number}...")
             if await self.is_page_empty(page):
                 print(f"[{self.crawler_id}] Page {page_number} is empty; stopping crawl.")
