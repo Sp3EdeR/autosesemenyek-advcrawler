@@ -19,14 +19,25 @@ jobs:
         with:
           ref: crawled
           path: crawled
+      - name: Install Poetry
+        run: pipx install poetry
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - name: Install Poetry
-        run: pipx install poetry
+          cache: 'poetry'
       - name: Install dependencies
         run: poetry install --no-interaction
+      - name: Resolve latest Camoufox version
+        id: camoufox-version
+        shell: bash
+        run: |
+          echo "version=$(poetry run python -c 'from camoufox.pkgman import CamoufoxFetcher; print(CamoufoxFetcher().verstr)')" >> "$GITHUB_OUTPUT"
+      - name: Cache Camoufox browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/camoufox
+          key: camoufox-${{ runner.os }}-${{ steps.camoufox-version.outputs.version }}
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
       - name: Run crawler
