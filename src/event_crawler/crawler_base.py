@@ -1,43 +1,19 @@
 from __future__ import annotations
 
 import hashlib
-import inspect
-import json
-import re
-import unicodedata
 from abc import ABC, abstractmethod
-from datetime import date
-from typing import Any, Annotated, Callable, ClassVar, cast
+from typing import Annotated, Any, ClassVar
 
-from playwright.async_api import Locator, Page, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import Locator, Page
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-CrawlerRow = dict[str, Any]
-CrawlerResult = list[CrawlerRow]
-CrawlerFactory = Callable[[], "BaseCrawler"]
-
-HUNGARIAN_MONTHS = {
-    "januar": 1,
-    "februar": 2,
-    "marcius": 3,
-    "aprilis": 4,
-    "majus": 5,
-    "junius": 6,
-    "julius": 7,
-    "augusztus": 8,
-    "szeptember": 9,
-    "oktober": 10,
-    "november": 11,
-    "december": 12,
-}
+from event_crawler.parser_base import ParserBase
 
 CONTENT_TIMEOUT_MS = 15000
 PAGE_RETRIES = 2
 
-class BaseCrawler(ABC):
+class CrawlerBase(ABC, ParserBase):
     """Abstract base class for calendar event crawlers."""
-
-    crawler_id: Annotated[ClassVar[str],
-        "Unique identifier for the crawler. Override in each subclass."]
 
     url: Annotated[ClassVar[str],
         "URL of the crawler's target page. Override in each subclass."]
@@ -45,31 +21,8 @@ class BaseCrawler(ABC):
     max_pages: Annotated[ClassVar[int],
         "Maximum number of pages to crawl. Override in a subclass if needed."] = 30
 
-    __registry: Annotated[ClassVar[dict[str, CrawlerFactory]],
+    _registry: Annotated[ClassVar[dict[str, type[CrawlerBase]]], # pyright: ignore[reportIncompatibleVariableOverride]
         "Registry of all crawler implementations. Automatically populated."] = {}
-    
-    @classmethod
-    def get_registry(cls) -> dict[str, CrawlerFactory]:
-        return cls.__registry
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Automatically register non-abstract subclasses in the crawler registry."""
-        super().__init_subclass__(**kwargs)
-        if inspect.isabstract(cls):
-            return
-
-        crawler_id = getattr(cls, "crawler_id", "")
-        if not crawler_id:
-            raise TypeError(f"{cls.__name__} must define crawler_id")
-
-        url = getattr(cls, "url", "")
-        if not url:
-            raise TypeError(f"{cls.__name__} must define url")
-
-        if crawler_id in BaseCrawler.__registry:
-            raise ValueError(f"Duplicate crawler_id registered: {crawler_id}")
-
-        BaseCrawler.__registry[crawler_id] = cast(CrawlerFactory, cls)
 
     async def wait_until_ready(self, page: Page) -> None:
         """Wait until the page is ready for interaction after navigation or pagination.
@@ -99,27 +52,27 @@ class BaseCrawler(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def extract_page_data(self, page: Page) -> CrawlerResult:
+    async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Extract event data from the current page and return it as a list of dicts."""
         raise NotImplementedError
 
-    def finalize_result(self, aggregate: CrawlerResult) -> CrawlerResult:
+    def finalize_result(self, aggregate: ParserBase.Result) -> ParserBase.Result:
         """Finalize aggregate data before returning it from crawl()."""
         return aggregate
 
-    async def crawl(self, page: Page) -> CrawlerResult:
+    async def crawl(self, page: Page) -> ParserBase.Result:
         """Run the full crawl loop: load, extract, paginate, and aggregate."""
-        print(f"[{self.crawler_id}] Navigating to {type(self).url}...")
+        print(f"[{self.id}] Navigating to {type(self).url}...")
         await page.goto(type(self).url, wait_until="commit", timeout=CONTENT_TIMEOUT_MS)
-        print(f"[{self.crawler_id}] Page committed, waiting for it to be ready...")
+        print(f"[{self.id}] Page committed, waiting for it to be ready...")
         await self.wait_until_ready(page)
-        print(f"[{self.crawler_id}] Initial page marked ready.")
+        print(f"[{self.id}] Initial page marked ready.")
         aggregate = []
         page_number = 1
         for _ in range(type(self).max_pages):
-            print(f"[{self.crawler_id}] Processing page {page_number}...")
+            print(f"[{self.id}] Processing page {page_number}...")
             if await self.is_page_empty(page):
-                print(f"[{self.crawler_id}] Page {page_number} is empty; stopping crawl.")
+                print(f"[{self.id}] Page {page_number} is empty; stopping crawl.")
                 break
 
             page_data = await self.extract_page_data(page)
@@ -127,61 +80,13 @@ class BaseCrawler(ABC):
 
             moved = await self._activate_next_page(page, preferred_selectors=self.next_selectors)
             if not moved:
-                print(f"[{self.crawler_id}] No further pages detected after page {page_number}.")
+                print(f"[{self.id}] No further pages detected after page {page_number}.")
                 break
 
             page_number += 1
-            print(f"[{self.crawler_id}] Loaded page {page_number}.")
+            print(f"[{self.id}] Loaded page {page_number}.")
 
         return self.finalize_result(aggregate)
-
-    @staticmethod
-    def _normalize_text_for_match(text: str) -> str:
-        """Normalize text for more reliable matching: casefold and remove diacritics."""
-        lowered = text.casefold()
-        normalized = unicodedata.normalize("NFD", lowered)
-        return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
-
-    @staticmethod
-    def _collapse_whitespace(text: str) -> str:
-        """Collapse all sequences of whitespace characters to a single space and trim."""
-        return " ".join((text or "").replace("\xa0", " ").split())
-
-    @staticmethod
-    def _extract_iso_date_from_caption(caption: str, day: int) -> str | None:
-        """Extract an ISO date from a month caption and day number."""
-        caption_norm = BaseCrawler._normalize_text_for_match(caption)
-        month = None
-        for month_name, month_number in HUNGARIAN_MONTHS.items():
-            if month_name in caption_norm:
-                month = month_number
-                break
-
-        if month is None:
-            return None
-
-        year_match = re.search(r"\b(\d{4})\b", caption_norm)
-        if not year_match:
-            return None
-
-        year = int(year_match.group(1))
-        try:
-            return date(year, month, day).isoformat()
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _dedupe(rows: list[str]) -> list[str]:
-        """Return rows in original order with duplicates removed."""
-        seen: set[str] = set()
-        unique_rows: list[str] = []
-        for row in rows:
-            marker = json.dumps(row, sort_keys=True, ensure_ascii=False)
-            if marker in seen:
-                continue
-            seen.add(marker)
-            unique_rows.append(row)
-        return unique_rows
 
     async def _get_calendar_signature(self, page: Page) -> str:
         """Build a stable signature hash from crawler-specific selector content."""
@@ -205,7 +110,8 @@ class BaseCrawler(ABC):
 
         Args:
             page: Playwright page instance to operate on.
-            preferred_selectors: List of CSS selectors to find the next-page control, in order of preference.
+            preferred_selectors: List of CSS selectors to find the next-page control, in order of
+                preference.
 
         Returns:
             Locator for the next-page control, or None if not found or not enabled.
@@ -241,11 +147,11 @@ class BaseCrawler(ABC):
         """
         next_button = await self._find_next_page_activator(page, preferred_selectors)
         if not next_button:
-            print(f"[{self.crawler_id}] Next-page control not found or not enabled.")
+            print(f"[{self.id}] Next-page control not found or not enabled.")
             return False
 
         signature_before = await self._get_calendar_signature(page)
-        print(f"[{self.crawler_id}] Clicking next-page control...")
+        print(f"[{self.id}] Clicking next-page control...")
         await next_button.click(**(click_options or {}))
 
         check_interval_ms = 100
@@ -255,5 +161,16 @@ class BaseCrawler(ABC):
             if signature_after != signature_before:
                 return True
 
-        print(f"[{self.crawler_id}] Timed out waiting for next page content to change.")
-        raise PlaywrightTimeoutError(f"Next page did not load in time for {self.crawler_id}.")
+        print(f"[{self.id}] Timed out waiting for next page content to change.")
+        raise PlaywrightTimeoutError(f"Next page did not load in time for {self.id}.")
+
+class SinglePageCrawlerBase(CrawlerBase):
+    """Base crawler for single-page calendars that don't require pagination."""
+
+    @property
+    def next_selectors(self) -> list[str]:
+        return []
+
+    @property
+    def page_content_selectors(self) -> list[str]:
+        return []
