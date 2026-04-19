@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from playwright.async_api import Page
 
-from event_crawler.crawler_base import BaseCrawler, CrawlerResult
+from event_crawler.crawler_base import CrawlerBase, ParserBase
 
 
-class MRingCrawler(BaseCrawler):
+class MRingCrawler(CrawlerBase):
     """Crawler implementation for extracting M-Ring event dates."""
 
-    crawler_id = "m-ring"
+    id = "m-ring"
     url = "https://m-ring.hu/"
 
     @property
@@ -27,7 +27,7 @@ class MRingCrawler(BaseCrawler):
         ).count() > 0
         return not (has_event_cells or has_event_like_nodes)
 
-    async def extract_page_data(self, page: Page) -> CrawlerResult:
+    async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Extract M-Ring trackday and race dates from the active month."""
         caption = ""
         caption_candidates = [
@@ -82,7 +82,7 @@ class MRingCrawler(BaseCrawler):
                 ):
                     race_rows.append(iso_date)
 
-        page_rows: CrawlerResult = []
+        page_rows: ParserBase.Result = []
         page_rows.extend({"trackday": value} for value in self._dedupe(trackday_rows))
         page_rows.extend({"race": value} for value in self._dedupe(race_rows))
         return page_rows

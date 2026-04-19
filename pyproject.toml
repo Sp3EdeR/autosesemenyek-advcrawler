@@ -9,6 +9,7 @@ packages = [{ include = "event_crawler", from = "src" }]
 [tool.poetry.dependencies]
 python = "^3.11"
 camoufox = "^0.4.11"
+icalendar = "^7.0.3"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.8"

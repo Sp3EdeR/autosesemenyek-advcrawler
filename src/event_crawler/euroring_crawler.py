@@ -4,13 +4,13 @@ import json
 
 from playwright.async_api import Page
 
-from event_crawler.crawler_base import BaseCrawler, CrawlerResult
+from event_crawler.crawler_base import CrawlerBase, ParserBase
 
 
-class EuroringCrawler(BaseCrawler):
+class EuroringCrawler(CrawlerBase):
     """Crawler implementation for extracting Euroring event dates."""
 
-    crawler_id = "euroring"
+    id = "euroring"
     url = "https://euroring.hu/esemenynaptar2/"
 
     @property
@@ -45,11 +45,11 @@ class EuroringCrawler(BaseCrawler):
         ).count() > 0
         return not event_markers
 
-    def finalize_result(self, aggregate: CrawlerResult) -> CrawlerResult:
+    def finalize_result(self, aggregate: ParserBase.Result) -> ParserBase.Result:
         # Deduplicate by full row value
         return [row for idx, row in enumerate(aggregate) if row not in aggregate[:idx]]
 
-    async def extract_page_data(self, page: Page) -> CrawlerResult:
+    async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Parse JSON-LD event entries and map them to known Euroring categories."""
         car_rows: list[str] = []
         motor_rows: list[str] = []
@@ -80,7 +80,7 @@ class EuroringCrawler(BaseCrawler):
             elif "track-angel" in event_url:
                 trackangel_rows.append(start_date)
 
-        page_rows: CrawlerResult = []
+        page_rows: ParserBase.Result = []
         page_rows.extend({"trackday": value} for value in self._dedupe(car_rows))
         page_rows.extend({"motor_trackday": value} for value in self._dedupe(motor_rows))
         page_rows.extend({"trackangel_trackday": value} for value in self._dedupe(trackangel_rows))

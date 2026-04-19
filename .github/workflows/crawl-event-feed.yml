@@ -1,8 +1,8 @@
-name: Crawl Calendars
+name: Crawl Event Feed
 
 on:
   schedule:
-    - cron: "35 4 * * *" # 4:35 daily
+    - cron: "55 4 * * *" # 4:55 daily
   workflow_dispatch:     # Manual execution
 
 permissions:
@@ -17,11 +17,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Checkout crawled branch
+      - name: Checkout feed branch
         uses: actions/checkout@v6
         with:
-          ref: crawled
-          path: crawled
+          ref: feed
+          path: feed
       - name: Cache Poetry installation
         id: poetry-cache
         uses: actions/cache@v4
@@ -59,13 +59,13 @@ jobs:
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
       - name: Run crawler
-        run: poetry run python -u -m event_crawler.main --crawler-filter 'm-ring|euroring' --output crawled/events.json
-      - name: Push crawler output to crawled branch
+        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar' --output feed/events.json
+      - name: Push crawler output to feed branch
         uses: actions-js/push@v1.5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: crawled
-          directory: crawled
+          branch: feed
+          directory: feed
           force: true
           amend: true
-          message: "Update crawled data"
+          message: "Update feed data"
