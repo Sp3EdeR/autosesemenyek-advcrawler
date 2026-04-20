@@ -4,6 +4,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from icalendar import STATUS, Calendar
+from lingua import Language, LanguageDetectorBuilder
 
 from event_crawler.downloader_base import DownloaderBase, ParserBase
 
@@ -64,6 +65,24 @@ class OldtimerDownloader(DownloaderBase):
                 evt_data["description"] = desc
             if event.location:
                 evt_data["location"] = str(event.location)
+
+            if not self._is_hungarian(f"{evt_data['summary']}\n{evt_data.get('description', '')}"):
+                continue
+
             page_rows.append({"event": evt_data})
 
         return page_rows
+
+    _lang_detector = LanguageDetectorBuilder.from_languages(
+        Language.HUNGARIAN,
+        Language.BULGARIAN, Language.CROATIAN, Language.CZECH, Language.DANISH,
+        Language.DUTCH, Language.ENGLISH, Language.ESTONIAN, Language.FINNISH,
+        Language.FRENCH, Language.GERMAN, Language.GREEK, Language.ITALIAN,
+        Language.LATVIAN, Language.LITHUANIAN, Language.NYNORSK, Language.POLISH,
+        Language.PORTUGUESE, Language.ROMANIAN, Language.SERBIAN, Language.SLOVAK,
+        Language.SLOVENE, Language.SPANISH, Language.SWEDISH
+    ).build()
+
+    def _is_hungarian(self, text: str) -> bool:
+        """Detect if the given text is in Hungarian."""
+        return self._lang_detector.detect_language_of(text) == Language.HUNGARIAN

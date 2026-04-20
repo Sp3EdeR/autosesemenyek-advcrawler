@@ -9,7 +9,7 @@ The crawler uses:
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+
 - Poetry
 
 ## Setting up and running the crawler
