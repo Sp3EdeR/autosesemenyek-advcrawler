@@ -59,7 +59,7 @@ jobs:
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
       - name: Run crawler
-        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar' --output feed/events.json
+        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar' --output feed/events.json
       - name: Push crawler output to feed branch
         uses: actions-js/push@v1.5
         with:
