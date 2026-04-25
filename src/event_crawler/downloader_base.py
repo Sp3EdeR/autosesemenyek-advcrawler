@@ -26,28 +26,30 @@ class DownloaderBase(ABC, ParserBase):
 
     async def download(self) -> bytes:
         """Download the resource at the subclass's URL, and return its content as bytes."""
-        def fetch() -> bytes:
-            try:
-                with urllib.request.urlopen(type(self).url, timeout=CONTENT_TIMEOUT_S) as response:
-                    return response.read()
-            except urllib.error.HTTPError as exc:
-                raise DownloaderBase.Error(
-                    exc.code in (408, 425, 429, 500, 502, 503, 504),
-                    f"HTTP Error: {exc.code} - {exc.reason}"
-                ) from exc
-            except urllib.error.ContentTooShortError as exc:
-                raise DownloaderBase.Error(
-                    True, f"Content Too Short Error: {exc.reason}"
-                ) from exc
-            except urllib.error.URLError as exc:
-                raise DownloaderBase.Error(
-                    isinstance(exc.reason, timeout), f"URL Error: {exc.reason}"
-                ) from exc
-            except Exception as exc:
-                raise DownloaderBase.Error(
-                    False, f"Unexpected error during download: {exc}"
-                ) from exc
-        return await asyncio.to_thread(fetch)
+        return await asyncio.to_thread(lambda: self._fetch_with_error_handling(type(self).url))
+    
+    def _fetch_with_error_handling(self, req: str | urllib.request.Request) -> bytes:
+        try:
+            with urllib.request.urlopen(req, timeout=CONTENT_TIMEOUT_S) as response:
+                return response.read()
+        except urllib.error.HTTPError as exc:
+            raise DownloaderBase.Error(
+                exc.code in (408, 425, 429, 500, 502, 503, 504),
+                f"HTTP Error: {exc.code} - {exc.reason}"
+            ) from exc
+        except urllib.error.ContentTooShortError as exc:
+            raise DownloaderBase.Error(
+                True, f"Content Too Short Error: {exc.reason}"
+            ) from exc
+        except urllib.error.URLError as exc:
+            raise DownloaderBase.Error(
+                isinstance(exc.reason, timeout), f"URL Error: {exc.reason}"
+            ) from exc
+        except Exception as exc:
+            raise DownloaderBase.Error(
+                False, f"Unexpected error during download: {exc}"
+            ) from exc
+
 
     def decode_content(self, content: bytes) -> str:
         """Decode the downloaded content using the specified encoding."""
