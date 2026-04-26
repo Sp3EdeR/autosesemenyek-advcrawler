@@ -51,6 +51,11 @@ class CrawlerBase(ABC, ParserBase):
         """Return a list of CSS selectors whose content should be used to detect page changes."""
         raise NotImplementedError
 
+    @property
+    def next_click_options(self) -> dict[str, Any] | None:
+        """Return a dictionary of arguments to pass to the next-page locator.click() method."""
+        return None
+
     @abstractmethod
     async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Extract event data from the current page and return it as a list of dicts."""
@@ -78,7 +83,11 @@ class CrawlerBase(ABC, ParserBase):
             page_data = await self.extract_page_data(page)
             aggregate.extend(page_data)
 
-            moved = await self._activate_next_page(page, preferred_selectors=self.next_selectors)
+            moved = await self._activate_next_page(
+                page,
+                preferred_selectors=self.next_selectors,
+                click_options=self.next_click_options
+            )
             if not moved:
                 print(f"[{self.id}] No further pages detected after page {page_number}.")
                 break
