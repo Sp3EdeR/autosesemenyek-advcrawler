@@ -60,6 +60,8 @@ jobs:
         run: poetry run python -m camoufox fetch
       - name: Run crawler
         run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar' --output feed/events.json
+      - name: Create markdown feed
+        run: poetry run python -m feed_formatter.main feed/events.json feed/README.md
       - name: Push crawler output to feed branch
         uses: actions-js/push@v1.5
         with:
