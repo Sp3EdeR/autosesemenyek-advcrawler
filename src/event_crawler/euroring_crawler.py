@@ -46,8 +46,7 @@ class EuroringCrawler(CrawlerBase):
         return not event_markers
 
     def finalize_result(self, aggregate: ParserBase.Result) -> ParserBase.Result:
-        # Deduplicate by full row value
-        return [row for idx, row in enumerate(aggregate) if row not in aggregate[:idx]]
+        return self._dedupe(aggregate)
 
     async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Parse JSON-LD event entries and map them to known Euroring categories."""
