@@ -59,7 +59,7 @@ jobs:
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
       - name: Run crawler
-        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin' --output feed/events.json
+        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus' --output feed/events.json
       - name: Create markdown feed
         run: poetry run python -m feed_formatter.main feed/events.json feed/README.md
       - name: Push crawler output to feed branch

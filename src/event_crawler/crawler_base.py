@@ -21,6 +21,10 @@ class CrawlerBase(ABC, ParserBase):
     max_pages: Annotated[ClassVar[int],
         "Maximum number of pages to crawl. Override in a subclass if needed."] = 30
 
+    reloading_pager: Annotated[ClassVar[bool],
+        "Whether the next-page control reloads the entire page. "
+        "Affects how to wait for the next page load. Override in a subclass if needed."] = False
+
     _registry: Annotated[ClassVar[dict[str, type[CrawlerBase]]], # pyright: ignore[reportIncompatibleVariableOverride]
         "Registry of all crawler implementations. Automatically populated."] = {}
 
@@ -168,6 +172,10 @@ class CrawlerBase(ABC, ParserBase):
             await page.wait_for_timeout(check_interval_ms)
             signature_after = await self._get_calendar_signature(page)
             if signature_after != signature_before:
+                if self.reloading_pager:
+                    print(f"[{self.id}] Content changed, waiting for the page to be ready...")
+                    await self.wait_until_ready(page)
+                    print(f"[{self.id}] New page marked ready.")
                 return True
 
         print(f"[{self.id}] Timed out waiting for next page content to change.")

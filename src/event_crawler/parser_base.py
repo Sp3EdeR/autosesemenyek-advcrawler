@@ -96,9 +96,5 @@ class ParserBase:
     @staticmethod
     def _dedupe(values: list[T]) -> list[T]:
         """Return values in original order with duplicates removed."""
-        unique_values: list[T] = []
-        for value in values:
-            if value in unique_values:
-                continue
-            unique_values.append(value)
-        return unique_values
+        seen: list[T] = []
+        return [value for value in values if value not in seen and not seen.append(value)]
