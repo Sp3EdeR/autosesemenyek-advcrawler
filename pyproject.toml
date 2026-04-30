@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Calendar crawler for M-Ring and Euroring pages using Camoufox"
 authors = ["Speeder <speeder@example.com>"]
 readme = "README.md"
-packages = [{ include = "event_crawler", from = "src" }]
+packages = [
+    { include = "event_crawler", from = "src" },
+    { include = "feed_formatter", from = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -17,6 +20,7 @@ ruff = "^0.12.8"
 
 [tool.poetry.scripts]
 crawl = "event_crawler.main:main"
+mkfeed = "feed_formatter.main:main"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

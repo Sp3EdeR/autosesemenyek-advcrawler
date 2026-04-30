@@ -1,0 +1,61 @@
+name: Crawl Autosesemenyek Calendars
+
+on:
+  schedule:
+    - cron: "35 3 * * *" # 3:35 daily
+  workflow_dispatch:     # Manual execution
+
+permissions:
+  contents: write
+
+env:
+  POETRY_VERSION: "2.3.4"
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Checkout autosesemenyek branch
+        uses: actions/checkout@v6
+        with:
+          ref: autosesemenyek
+          path: autosesemenyek
+      - name: Cache Poetry installation
+        id: poetry-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/poetry
+            ~/.local/venv
+            ~/.local/VERSION
+          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}
+      - name: Add Poetry to PATH
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Poetry
+        if: steps.poetry-cache.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: 'poetry'
+      - name: Install dependencies
+        run: poetry install --no-interaction
+      - name: Run crawler
+        run: poetry run python -u -m event_crawler.main --crawler-filter 'autosesemenyek' --output autosesemenyek/events.json
+      - name: Create markdown feed
+        run: poetry run python -m feed_formatter.main autosesemenyek/events.json autosesemenyek/README.md
+      - name: Push crawler output to autosesemenyek branch
+        uses: actions-js/push@v1.5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: autosesemenyek
+          directory: autosesemenyek
+          force: true
+          amend: true
+          message: "Update autosesemenyek data"
