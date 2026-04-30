@@ -38,7 +38,7 @@ class AutosnaptarDownloader(DownloaderBase):
             "mode": "list"
         }
         req.data = bytes(urllib.parse.urlencode(data), encoding="utf-8")
-        return await asyncio.to_thread(lambda: self._fetch_with_error_handling(req))
+        return await asyncio.to_thread(lambda: self.fetch_with_error_handling(req))
 
     async def extract_data(self, content: str) -> ParserBase.Result:
         """Extract future event dates from the calendar."""

@@ -26,9 +26,9 @@ class DownloaderBase(ABC, ParserBase):
 
     async def download(self) -> bytes:
         """Download the resource at the subclass's URL, and return its content as bytes."""
-        return await asyncio.to_thread(lambda: self._fetch_with_error_handling(type(self).url))
+        return await asyncio.to_thread(lambda: self.fetch_with_error_handling(type(self).url))
     
-    def _fetch_with_error_handling(self, req: str | urllib.request.Request) -> bytes:
+    def fetch_with_error_handling(self, req: str | urllib.request.Request) -> bytes:
         try:
             with urllib.request.urlopen(req, timeout=CONTENT_TIMEOUT_S) as response:
                 return response.read()

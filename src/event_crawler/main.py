@@ -142,7 +142,11 @@ class CrawlOrchestrator:
         for i in range(1, CRAWL_RETRIES + 1):
             try:
                 content_bin = await downloader.download()
-                break
+
+                content = downloader.decode_content(content_bin)
+                print(f"[{id}] Extracting data...")
+                result = await downloader.extract_data(content)
+                return id, result
             except Exception as exc:
                 print(
                     f"[{id}] Download attempt {i}/{CRAWL_RETRIES} failed: "
@@ -157,10 +161,7 @@ class CrawlOrchestrator:
                 else:
                     raise
 
-        content = downloader.decode_content(content_bin)
-        print(f"[{id}] Extracting data...")
-        result = await downloader.extract_data(content)
-        return id, result
+        raise RuntimeError(f"[{id}] Downloader retry loop exited unexpectedly")
 
     async def run(self) -> ParserBase.Result:
         """Run source crawlers and persist a flattened output payload."""
