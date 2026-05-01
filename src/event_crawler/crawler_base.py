@@ -28,6 +28,10 @@ class CrawlerBase(ABC, ParserBase):
     _registry: Annotated[ClassVar[dict[str, type[CrawlerBase]]], # pyright: ignore[reportIncompatibleVariableOverride]
         "Registry of all crawler implementations. Automatically populated."] = {}
 
+    def build_camoufox_launch_options(self) -> dict[str, Any]:
+        """Return Camoufox launch options for this crawler instance."""
+        return {}
+
     async def wait_until_ready(self, page: Page) -> None:
         """Wait until the page is ready for interaction after navigation or pagination.
 

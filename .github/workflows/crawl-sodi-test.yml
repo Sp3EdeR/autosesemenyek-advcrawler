@@ -1,0 +1,71 @@
+name: Crawl Sodi Feed
+
+on:
+  workflow_dispatch:     # Manual execution
+
+permissions:
+  contents: write
+
+env:
+  POETRY_VERSION: "2.3.4"
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Checkout crawled_test branch
+        uses: actions/checkout@v6
+        with:
+          ref: crawled_test
+          path: crawled_test
+      - name: Cache Poetry installation
+        id: poetry-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/poetry
+            ~/.local/venv
+            ~/.local/VERSION
+          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}
+      - name: Add Poetry to PATH
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Poetry
+        if: steps.poetry-cache.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: 'poetry'
+      - name: Install dependencies
+        run: poetry install --no-interaction
+      - name: Resolve latest Camoufox version
+        id: camoufox-version
+        shell: bash
+        run: |
+          echo "version=$(poetry run python -c 'from camoufox.pkgman import CamoufoxFetcher; print(CamoufoxFetcher().verstr)')" >> "$GITHUB_OUTPUT"
+      - name: Cache Camoufox browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/camoufox
+          key: camoufox-${{ runner.os }}-${{ steps.camoufox-version.outputs.version }}
+      - name: Fetch Camoufox browser
+        run: poetry run python -m camoufox fetch
+      - name: Run crawler
+        run: poetry run python -u -m event_crawler.main --crawler-filter 'sodiwseries' --output crawled_test/events.json
+        env:
+          TEN_CAPTCHA_API_KEY: ${{ secrets.TEN_CAPTCHA_API_KEY }}
+      - name: Push crawler output to crawled_test branch
+        uses: actions-js/push@v1.5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: crawled_test
+          directory: crawled_test
+          force: true
+          amend: true
+          message: "Update crawled_test data"

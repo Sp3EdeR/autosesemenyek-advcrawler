@@ -90,8 +90,12 @@ class CrawlOrchestrator:
         self._jobs = jobs
         self._headless = headless
 
-    async def _run_single_crawler(self, browser: Any, id: str) -> tuple[str, ParserBase.Result]:
-        crawler = self._crawlers[id]
+    async def _run_single_crawler(
+        self,
+        browser: Any,
+        crawler: CrawlerBase,
+    ) -> tuple[str, ParserBase.Result]:
+        id = crawler.id
 
         for i in range(1, CRAWL_RETRIES + 1):
             context = None
@@ -168,6 +172,7 @@ class CrawlOrchestrator:
         selected_crawler_ids = [
             id for id in self._crawlers.keys() if self._crawler_filter.search(id)
         ]
+        selected_crawlers = [self._crawlers[id] for id in selected_crawler_ids]
         selected_downloader_ids = [
             id for id in self._downloaders.keys() if self._crawler_filter.search(id)
         ]
@@ -180,32 +185,37 @@ class CrawlOrchestrator:
             if selected_downloader_ids:
                 for id in selected_downloader_ids:
                     results.append(await self._run_single_downloader(id))
-            if selected_crawler_ids:
-                print("Spawning single browser instance...")
-                async with AsyncCamoufox(headless=self._headless) as browser:
-                    for id in selected_crawler_ids:
-                        results.append(await self._run_single_crawler(browser, id))
+            for crawler in selected_crawlers:
+                print(f"[{crawler.id}] Spawning browser instance...")
+                async with AsyncCamoufox(
+                    **crawler.build_camoufox_launch_options(),
+                    headless=self._headless
+                ) as browser:
+                    results.append(await self._run_single_crawler(browser, crawler))
         else:
             # WARN: Camoufox is not reentrant. Multiple browser instances must be created to run
             # crawlers concurrently. Do not try to share a single browser instance with multiple
             # pages, as it will lead to sporadic problems.
             semaphore = asyncio.Semaphore(self._jobs)
 
-            async def crawl_one_async(id: str) -> tuple[str, ParserBase.Result]:
+            async def crawl_one_async(crawler: CrawlerBase) -> tuple[str, ParserBase.Result]:
                 async with semaphore:
                     try:
-                        print(f"[{id}] Spawning browser instance...")
-                        browser_cm = AsyncCamoufox(headless=self._headless)
+                        print(f"[{crawler.id}] Spawning browser instance...")
+                        browser_cm = AsyncCamoufox(
+                            **crawler.build_camoufox_launch_options(),
+                            headless=self._headless
+                        )
                         browser = await browser_cm.__aenter__()
-                        result = await self._run_single_crawler(browser, id)
+                        result = await self._run_single_crawler(browser, crawler)
                         # Don't try to clean Camoufox up on error, just kill the process.
                         await browser_cm.__aexit__(None, None, None)
-                        print(f"[{id}] Finished successfully.")
+                        print(f"[{crawler.id}] Finished successfully.")
                         return result
                     except BaseException as exc:
                         # The browser connection may have become unstable, so don't try to exit
                         # cleanly. Just terminate the process.
-                        print(f"[{id}] Uncaught exception, terminating process.")
+                        print(f"[{crawler.id}] Uncaught exception, terminating process.")
                         traceback.print_exception(type(exc), exc, exc.__traceback__)
                         sys.stdout.flush()
                         sys.stderr.flush()
@@ -225,7 +235,7 @@ class CrawlOrchestrator:
                         os._exit(1)
 
             results = await asyncio.gather(
-                *[crawl_one_async(id) for id in selected_crawler_ids],
+                *[crawl_one_async(crawler) for crawler in selected_crawlers],
                 *[download_one_async(id) for id in selected_downloader_ids],
             )
 
