@@ -14,6 +14,7 @@ python = "^3.12"
 camoufox = "^0.4.11"
 icalendar = "^7.0.3"
 lingua-language-detector = "^2.2.0"
+playwright-captcha = "^0.1.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.8"
