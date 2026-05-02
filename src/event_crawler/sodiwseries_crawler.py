@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 from datetime import date
+from itertools import groupby
 from typing import Any
 
 from playwright.async_api import Locator, Page
@@ -16,7 +17,7 @@ class SodiWSeriesCrawler(CrawlerBase):
     """Crawler implementation for extracting Sodi W Series race listings."""
 
     id = "sodiwseries"
-    url = f"https://www.sodiwseries.com/en-gb/races/{date.today():%Y/%m}"
+    url = f"https://www.sodiwseries.com/en-gb/races/"
     max_pages = 12
     reloading_pager = True
 
@@ -117,8 +118,50 @@ class SodiWSeriesCrawler(CrawlerBase):
         return page_rows
 
     def finalize_result(self, aggregate: ParserBase.Result) -> ParserBase.Result:
-        # TODO: Unify same-day same-track events
-        return self._dedupe(aggregate)
+        def make_description(evt_data, label, prefix="<p>", postfix="</p>"):
+            desc = ""
+            if "url" in evt_data:
+                desc += f"<a href=\"{evt_data['url']}\">{label}</a>"
+            if "kart_model" in evt_data:
+                desc += f"{', ' if desc else ''}gokart modell: {evt_data.get('kart_model', '')}"
+            return f"{prefix}{desc}{postfix}" if desc else ""
+
+        result = []
+        groups = groupby(aggregate, key=lambda item: (item["event"]["dtstart"], item["event"].get("track")))
+        for _, group in groups:
+            events = list(group)
+            e1 = events[0]['event']
+
+            location = []
+            if "track" in e1:
+                location.append(e1['track'])
+            if "town" in e1:
+                location.append(e1['town'])
+            location = ", ".join(location)
+
+            event_data = {
+                "dtstart": e1["dtstart"],
+                "location": location,
+            }
+            if len(events) == 1:
+                event_data["summary"] = e1["summary"]
+                event_data["description"] = make_description(e1, "A futam oldala")
+            else:
+                event_data["summary"] = f"{e1.get('track', e1['summary'])} Futamok"
+                event_data["description"] = "\n".join([
+                    make_description(
+                        event["event"],
+                        label=f"futam: {event['event']['summary']}",
+                        prefix="<li>",
+                        postfix="</li>"
+                    ) for event in events
+                ])
+                if event_data["description"]:
+                    event_data["description"] = f"<ul>\n{event_data['description']}\n</ul>"
+            event_data["description"] += f"\n<p>Forrás: <a href=\"{self.url}\">{self.url}</a></p>"
+
+            result.append({"event": event_data})
+        return result
 
     async def _solve_recaptcha_if_present(self, page: Page) -> bool:
         if await page.locator(self.recaptcha_form_selector).count() == 0:
