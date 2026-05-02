@@ -1,0 +1,18 @@
+name: Ping Dependencies
+
+on:
+  workflow_dispatch:     # Manual execution# Runs every 15 minutes
+
+jobs:
+  ping_url:
+    runs-on: ubuntu-latest
+    name: Ping Sites
+    steps:
+      - name: Check whether the websites are up
+        uses: jtalk/url-health-check-action@v5
+        with:
+          url: https://autosnaptar.hu/|https://www.blackstarvisonta.hu/|https://euroring.hu/|https://calendar.google.com/|https://m-ring.hu/|https://www.programturizmus.hu/|https://www.sodiwseries.com|https://youngtimers-club.hu/
+          max-attempts: 3
+          retry-delay: 5s # Optional, only applicable to max-attempts > 1
+          retry-all: false # Optional, defaults to "false"
+        timeout-minutes: 5
