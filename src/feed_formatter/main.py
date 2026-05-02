@@ -90,7 +90,7 @@ def write_markdown(strm: TextIO, events: list[dict]) -> int:
             if not is_html.search(val_f):
                 val_f = esc_html(val_f).replace("\n", "<br>\n")
 
-            if "<br>" in val_f:
+            if is_html.search(val_f):
                 strm.write(f"<details><summary><b>{key_f}</b></summary>\n{val_f}\n</details>\n")
             else:
                 strm.write(f"<details><summary><b>{key_f}</b>: {val_f}</summary>\n</details>\n")
