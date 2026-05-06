@@ -11,6 +11,8 @@ from event_crawler.crawler_base import CONTENT_TIMEOUT_MS, CrawlerBase, ParserBa
 from event_crawler.parser_base import HUNGARIAN_MONTHS
 
 
+DYNAMIC_CONTENT_TIMEOUT_MS = 5000
+
 class BlackstarCrawler(CrawlerBase):
     """Crawler implementation for extracting Black Star Visonta trackday dates."""
 
@@ -18,20 +20,19 @@ class BlackstarCrawler(CrawlerBase):
     url = "https://www.blackstarvisonta.hu/naptar"
     reloading_pager = True
 
-    widget_root_selector = "#wix-events-widget"
     datepicker_button_selector = (
-        "#wix-events-widget button[data-hook='calendar-date-picker-button']"
+        "#wix-events-widget[data-hydrated='true'] "
+        "button[data-hook='calendar-date-picker-button']"
     )
-    datepicker_next_selector = "#wix-events-widget button[data-hook='datepicker-right-arrow']"
-    month_grid_selector = "#wix-events-widget [role='grid']"
-    month_cell_selector = "#wix-events-widget [role='grid'] [data-hook^='calendar-cell-']"
+    datepicker_next_selector = (
+        "#wix-events-widget[data-hydrated='true'] "
+        "button[data-hook='datepicker-right-arrow']"
+    )
+    month_cell_selector = (
+        "#wix-events-widget[data-hydrated='true'] "
+        "[role='grid'] [data-hook^='calendar-cell-']"
+    )
     popup_details_selector = "[data-hook='calendar-event-details']"
-    popup_close_selector = "[data-hook='calendar-popup-close-button']"
-    popup_title_selector = "[data-hook='title']"
-    popup_title_link_selector = "[data-hook='title'] a[href]"
-    popup_date_selector = "[data-hook='date']"
-    popup_description_selector = "[data-hook='description']"
-    popup_rsvp_selector = "a[data-hook='rsvp-button'][href]"
 
     popup_month_aliases = {
         "jan": 1,
@@ -66,23 +67,14 @@ class BlackstarCrawler(CrawlerBase):
 
     @property
     def page_content_selectors(self) -> list[str]:
-        return [
-            self.datepicker_button_selector,
-            self.month_grid_selector,
-            "#wix-events-widget [data-hook='calendar'] table[aria-label]",
-        ]
+        return ["#wix-events-widget [role='grid']"]
 
     async def wait_until_ready(self, page: Page) -> None:
         await super().wait_until_ready(page)
-        # Ensure post-load calendar "hydration" event
-        await page.locator(f"{self.widget_root_selector}[data-hydrated='true']").wait_for(
-            state="visible",
-            timeout=10000,
-        )
-        # Ensure that the datepicker button is visible
+        # Ensure post-load calendar "hydration" event, and datepicker button visibility
         await page.locator(self.datepicker_button_selector).wait_for(
             state="visible",
-            timeout=10000,
+            timeout=CONTENT_TIMEOUT_MS,
         )
         await self._ensure_datepicker_open(page)
 
@@ -124,14 +116,14 @@ class BlackstarCrawler(CrawlerBase):
         return rows
 
     async def _ensure_datepicker_open(self, page: Page) -> None:
-        # If the next arrow is visible, then the datepicker is already open
+        # If the next arrow exists, then the datepicker is already open
         next_arrow = page.locator(self.datepicker_next_selector)
-        if await next_arrow.count() > 0:
+        if await next_arrow.first.is_visible():
             return
 
         button = page.locator(self.datepicker_button_selector)
         await button.click(force=True)
-        await next_arrow.first.wait_for(state="visible", timeout=10000)
+        await next_arrow.first.wait_for(state="visible", timeout=DYNAMIC_CONTENT_TIMEOUT_MS)
 
     async def _activate_next_page(
         self,
@@ -215,7 +207,7 @@ class BlackstarCrawler(CrawlerBase):
                 continue
 
             visible_month_cells += 1
-            day_number, titles = await self._extract_cell_day_and_titles(cell, aria_label)
+            day_number = await self._extract_cell_day(cell, aria_label)
             iso_date = self._build_visible_month_iso_date(
                 visible_year,
                 visible_month_number,
@@ -223,10 +215,11 @@ class BlackstarCrawler(CrawlerBase):
                 visible_caption,
                 aria_label,
             )
-            if not any(self._classify_title(title) for title in titles):
+
+            if "no events" in self._normalize_text_for_match(aria_label):
                 continue
 
-            rows.append(await self._extract_popup_row(cell, iso_date))
+            rows.extend(await self._extract_popup_rows(cell, iso_date))
 
         if visible_month_cells == 0:
             raise ValueError(
@@ -235,107 +228,105 @@ class BlackstarCrawler(CrawlerBase):
 
         return self._dedupe(rows)
 
-    async def _extract_popup_row(
+    async def _extract_popup_rows(
         self,
         cell: Locator,
         fallback_date: str,
-    ) -> ParserBase.Row:
+    ) -> ParserBase.Result:
         container = cell.locator("xpath=..")
-        await cell.click(force=True)
-
-        popup = container.locator(self.popup_details_selector)
-        await popup.wait_for(state="visible", timeout=1000)
+        await cell.dispatch_event("click")
 
         try:
-            summary = self._collapse_whitespace(
-                await popup.locator(self.popup_title_selector).first.inner_text()
-            )
-            category = self._classify_title(summary)
-            if not category:
-                raise ValueError(
-                    f"[{self.id}] Popup title is not a supported trackday event: {summary!r}"
-                )
-
-            date_text = self._collapse_whitespace(
-                await popup.locator(self.popup_date_selector).first.inner_text()
+            event_list = container.locator("[data-hook='calendar-event-list']").first
+            event_details = container.locator(self.popup_details_selector).first
+            await event_list.or_(event_details).first.wait_for(
+                state="visible",
+                timeout=DYNAMIC_CONTENT_TIMEOUT_MS
             )
 
-            dtstart, dtend = self._parse_popup_datetimes(date_text, fallback_date)
+            if await event_list.is_visible():
+                items = event_list.locator("ul > li")
+                rows: ParserBase.Result = []
+                for idx in range(await items.count()):
+                    await items.nth(idx).click(force=True)
 
-            description = None
-            description_locator = popup.locator(self.popup_description_selector)
-            if await description_locator.count() > 0:
-                description = self._clean_description(
-                    await description_locator.first.inner_text()
-                ) or None
+                    row = await self._extract_popup_detail_row(container, fallback_date)
+                    if row:
+                        rows.append(row)
 
-            url = await self._extract_popup_url(popup)
+                    back_button = container.locator("[data-hook='calendar-popup-back-button']")
+                    await back_button.first.click(force=True)
+                    await event_list.wait_for(state="visible", timeout=DYNAMIC_CONTENT_TIMEOUT_MS)
+                return rows
+            elif await event_details.is_visible():
+                row = await self._extract_popup_detail_row(container, fallback_date)
+                return [row] if row else []
+            else:
+                raise RuntimeError(f"[{self.id}] Popup appeared and vanished")
+        except PlaywrightTimeoutError:
+            print(f"[{self.id}] No popup appeared for a cell in time")
+            raise
 
-            return self._build_event_row(
-                category=category,
-                summary=summary,
-                dtstart=dtstart,
-                dtend=dtend,
-                description=description,
-                url=url,
-            )
-        finally:
-            await popup.locator(self.popup_close_selector).first.click(force=True)
+    async def _extract_popup_detail_row(
+        self,
+        popup_container: Locator,
+        fallback_date: str,
+    ) -> ParserBase.Row | None:
+        popup = popup_container.locator(self.popup_details_selector).first
+        await popup.wait_for(state="visible", timeout=DYNAMIC_CONTENT_TIMEOUT_MS)
 
-    async def _extract_cell_day_and_titles(
+        summary = self._collapse_whitespace(
+            await popup.locator("[data-hook='title']").first.inner_text()
+        )
+        category = self._classify_title(summary)
+        if not category:
+            return None
+
+        date_text = self._collapse_whitespace(
+            await popup.locator("[data-hook='date']").first.inner_text()
+        )
+
+        dtstart, dtend = self._parse_popup_datetimes(date_text, fallback_date)
+
+        description = None
+        description_locator = popup.locator("[data-hook='description']")
+        if await description_locator.count() > 0:
+            description = self._clean_description(
+                await description_locator.first.inner_text()
+            ) or None
+
+        url = await self._extract_popup_url(popup)
+
+        return self._build_event_row(
+            category=category,
+            summary=summary,
+            dtstart=dtstart,
+            dtend=dtend,
+            description=description,
+            url=url,
+        )
+
+    async def _extract_cell_day(
         self,
         cell: Locator,
         aria_label: str,
-    ) -> tuple[int, list[str]]:
+    ) -> int:
         # The cell structure is only marked up with random classes, so we look for leaf divs
-        # The first leaf div is the day number, and subsequent divs are event metadata/title pairs
-        leaf_div_texts = await cell.locator("xpath=.//div[not(descendant::div)]").all_inner_texts()
-        leaf_texts = [
-            collapsed
-            for text in leaf_div_texts
-            if (collapsed := self._collapse_whitespace(text))
-        ]
-        if not leaf_texts:
+        # and use the first one as the day number.
+        cell_dates = await cell.locator("div:not(:has(> *))").first.all_inner_texts()
+        if not cell_dates:
             raise ValueError(
                 f"[{self.id}] No leaf div texts found for calendar cell {aria_label!r}."
             )
 
-        day_text = leaf_texts[0]
-        if not day_text.isdigit():
+        cell_date = self._collapse_whitespace(cell_dates[0])
+        if not cell_date.isdigit():
             raise ValueError(
                 f"[{self.id}] First leaf div is not a day number for cell {aria_label!r}: "
-                f"{day_text!r}"
+                f"{cell_date!r}"
             )
 
-        event_fragments = leaf_texts[1:]
-        aria_label_norm = self._normalize_text_for_match(aria_label)
-        if "no events" in aria_label_norm:
-            if event_fragments:
-                raise ValueError(
-                    f"[{self.id}] No-events cell unexpectedly had leaf div content: "
-                    f"{event_fragments!r}"
-                )
-            return int(day_text), []
-
-        if not event_fragments:
-            raise ValueError(
-                f"[{self.id}] Event cell had no event leaf divs after the day number: "
-                f"{aria_label!r}"
-            )
-
-        if len(event_fragments) % 2 != 0:
-            raise ValueError(
-                f"[{self.id}] Expected metadata/title leaf-div pairs for cell {aria_label!r}, "
-                f"got {event_fragments!r}"
-            )
-
-        titles = event_fragments[1::2]
-        if not titles:
-            raise ValueError(
-                f"[{self.id}] No event titles parsed for calendar cell {aria_label!r}."
-            )
-
-        return int(day_text), titles
+        return int(cell_date)
 
     def _build_visible_month_iso_date(
         self,
@@ -354,16 +345,12 @@ class BlackstarCrawler(CrawlerBase):
             ) from exc
 
     async def _extract_popup_url(self, popup: Locator) -> str | None:
-        for selector in [self.popup_rsvp_selector, self.popup_title_link_selector]:
-            link = popup.locator(selector)
-            if await link.count() == 0:
-                continue
+        link = popup.locator("[data-hook='title'] a[href]")
+        if await link.count() == 0:
+            return None
 
-            href = self._collapse_whitespace(await link.first.get_attribute("href") or "")
-            if href:
-                return href
-
-        return None
+        href = self._collapse_whitespace(await link.first.get_attribute("href") or "")
+        return href if href else None
 
     def _build_event_row(
         self,
@@ -449,11 +436,12 @@ class BlackstarCrawler(CrawlerBase):
 
     def _classify_title(self, title: str) -> str | None:
         title_norm = self._normalize_text_for_match(title)
-        if "nyilt" not in title_norm:
-            return None
-        if "auto" in title_norm:
+        if "nyilt" in title_norm and "auto" in title_norm:
             return "trackday"
-        if "moto" in title_norm or "robog" in title_norm:
+        if (
+            "nyilt" in title_norm and ("moto" in title_norm or "robog" in title_norm) or
+            "supermoto" in title_norm
+        ):
             return "motor_trackday"
         return None
 
