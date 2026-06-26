@@ -46,6 +46,7 @@ class MRingCrawler(CrawlerBase):
 
         race_rows: list[str] = []
         trackday_rows: list[str] = []
+        motor_trackday_rows: list[str] = []
 
         day_cells = page.locator("td.jet-calendar-week__day:not(.day-pad)")
         for idx in range(await day_cells.count()):
@@ -73,8 +74,9 @@ class MRingCrawler(CrawlerBase):
 
                 if "nyilt" in summary_norm and "auto" in summary_norm:
                     trackday_rows.append(iso_date)
-
-                if (
+                elif "nyilt" in summary_norm and "moto" in summary_norm:
+                    motor_trackday_rows.append(iso_date)
+                elif (
                     "m-ring cup" in summary_norm
                     or "m ring cup" in summary_norm
                     or "m-ring kupa" in summary_norm
@@ -84,5 +86,6 @@ class MRingCrawler(CrawlerBase):
 
         page_rows: ParserBase.Result = []
         page_rows.extend({"trackday": value} for value in self._dedupe(trackday_rows))
+        page_rows.extend({"motor_trackday": value} for value in self._dedupe(motor_trackday_rows))
         page_rows.extend({"race": value} for value in self._dedupe(race_rows))
         return page_rows
