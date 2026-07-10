@@ -6,7 +6,8 @@ authors = ["Speeder <speeder@example.com>"]
 readme = "README.md"
 packages = [
     { include = "event_crawler", from = "src" },
-    { include = "feed_formatter", from = "src" }
+    { include = "feed_formatter", from = "src" },
+    { include = "utilities", from = "src" }
 ]
 
 [tool.poetry.dependencies]
@@ -14,6 +15,7 @@ python = "^3.12"
 camoufox = "^0.4.11"
 icalendar = "^7.0.3"
 lingua-language-detector = "^2.2.0"
+marisa-trie = "^1.2.1"
 playwright-captcha = "^0.1.4"
 
 [tool.poetry.group.dev.dependencies]

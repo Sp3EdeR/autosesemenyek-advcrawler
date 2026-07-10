@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import inspect
 import re
-import unicodedata
 from datetime import date
 from typing import Annotated, Any, ClassVar, TypeVar
+
+from utilities import normalize_text_for_match
 
 HUNGARIAN_MONTHS = {
     "januar": 1,
@@ -83,10 +84,8 @@ class ParserBase:
 
     @staticmethod
     def _normalize_text_for_match(text: str) -> str:
-        """Normalize text for more reliable matching: casefold and remove diacritics."""
-        lowered = text.casefold()
-        normalized = unicodedata.normalize("NFD", lowered)
-        return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+        """Normalize text for more reliable matching."""
+        return normalize_text_for_match(text)
 
     @staticmethod
     def _collapse_whitespace(text: str) -> str:
