@@ -30,12 +30,6 @@ Run the crawler:
 poetry run crawl
 ```
 
-or
-
-```bash
-poetry run python -m event_crawler.main
-```
-
 By default, the output is generated at `$CWD/crawled.json`.
 
 For more information about available command-line options, run:
@@ -43,6 +37,36 @@ For more information about available command-line options, run:
 ```bash
 poetry run crawl --help
 ```
+
+## Setting up and running the deduper
+
+Install dedupe into the environment:
+
+```bash
+poetry install -E dedupe
+```
+
+Install dedupe into the environment on Windows:
+
+```bat
+call "<Visual Studio dir>\VC\Auxiliary\Build\vcvarsall.bat" x64
+set DISTUTILS_USE_SDK=1
+poetry install -E dedupe
+```
+
+Run deduplication training using sample events from `dedupe/training_events.json`:
+
+```bash
+poetry run event-clusterizer train
+```
+
+Run deduplication:
+
+```bash
+poetry run event-clusterizer process -o <output.json> <input.json>...
+```
+
+By default, the output is generated at `$CWD/deduped.json`.
 
 ## Developing and debugging
 
