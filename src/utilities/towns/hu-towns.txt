@@ -1383,6 +1383,7 @@ Kolontár
 Komádi
 Komárom
 Komjáti
+Komló
 Komlódtótfalu
 Komlósd
 Komlóska
@@ -2048,6 +2049,7 @@ Pankasz
 Pannonhalma
 Pányok
 Panyola
+Pápa
 Pápadereske
 Pápakovácsi
 Pápasalamon
@@ -2335,7 +2337,6 @@ Sáta
 Sátoraljaújhely
 Sátorhely
 Sávoly
-Sé
 Segesd
 Selyeb
 Sellye
@@ -2855,7 +2856,6 @@ Ugod
 Újudvar
 Újvárfalva
 Ukk
-Und
 Úny
 Uppony
 Ura
