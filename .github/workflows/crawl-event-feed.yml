@@ -30,7 +30,7 @@ jobs:
             ~/.local/bin/poetry
             ~/.local/venv
             ~/.local/VERSION
-          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}
+          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}-dedupe
       - name: Add Poetry to PATH
         shell: bash
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -45,7 +45,7 @@ jobs:
           python-version: "3.12"
           cache: 'poetry'
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: poetry install --no-interaction --extras=dedupe # Cache key must contain extras
       - name: Resolve latest Camoufox version
         id: camoufox-version
         shell: bash
@@ -60,8 +60,14 @@ jobs:
         run: poetry run python -m camoufox fetch
       - name: Run crawler
         run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus' --output feed/events.json
-      - name: Create markdown feed
-        run: poetry run python -m feed_formatter.main feed/events.json feed/README.md
+      - name: Run Event Deduplication
+        run: poetry run python -u -m event_clusterizer.main process -o feed/events-clusterized.json feed/events.json https://raw.githubusercontent.com/Sp3EdeR/autosesemenyek-advcrawler/refs/heads/autosesemenyek/events.json
+      - name: Run Autosesemenyek Event Filter
+        run: poetry run python -u -m dedup_filter.main feed/events-clusterized.json feed/new_events.json
+      - name: Create full markdown feed
+        run: poetry run python -u -m feed_formatter.main feed/events.json feed/FULLFEED.md
+      - name: Create new markdown feed
+        run: poetry run python -u -m feed_formatter.main feed/new_events.json feed/README.md
       - name: Push crawler output to feed branch
         uses: actions-js/push@v1.5
         with:
