@@ -5,8 +5,10 @@ description = "Calendar crawler for M-Ring and Euroring pages using Camoufox"
 authors = ["Speeder <speeder@example.com>"]
 readme = "README.md"
 packages = [
+    { include = "event_clusterizer", from = "src" },
     { include = "event_crawler", from = "src" },
     { include = "feed_formatter", from = "src" },
+    { include = "dedup_filter", from = "src" },
     { include = "utilities", from = "src" }
 ]
 
@@ -17,6 +19,11 @@ icalendar = "^7.0.3"
 lingua-language-detector = "^2.2.0"
 marisa-trie = "^1.2.1"
 playwright-captcha = "^0.1.4"
+dedupe = { version = "^3.0.3", optional = true }
+dedupe-variable-datetime = { version="^2.0.0", optional = true }
+
+[tool.poetry.extras]
+dedupe = ["dedupe", "dedupe-variable-datetime" ]
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.8"
@@ -24,6 +31,8 @@ ruff = "^0.12.8"
 [tool.poetry.scripts]
 crawl = "event_crawler.main:main"
 mkfeed = "feed_formatter.main:main"
+event-clusterizer = "event_clusterizer.main:main"
+dedup-filter = "dedup_filter.main:main"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

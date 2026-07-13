@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .venv/
 venv/
+.vscode/
 .poetry/
 .pytest_cache/
 .ruff_cache/
@@ -12,5 +13,6 @@ venv/
 .DS_Store
 *.log
 dist/
-*.json
+/*.json
+/dedupe/*.json
 !.github/
