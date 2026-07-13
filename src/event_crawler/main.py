@@ -316,7 +316,7 @@ def main() -> None:
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, sort_keys=True), encoding="utf-8")
+    output.write_text(json.dumps(result, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
 if __name__ == "__main__":

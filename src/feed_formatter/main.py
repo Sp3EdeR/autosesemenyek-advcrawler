@@ -62,7 +62,8 @@ def write_markdown(strm: TextIO, events: list[dict]) -> int:
         "egyes\u00edtett esem\u00e9ny lista.\n\n"
     )
 
-    is_html = re.compile(r"<(?:p|br)\b[^>]*?/?>")
+    has_html_break = re.compile(r"<(?:p|br)\b[^>]*?/?>")
+    has_html_link = re.compile(r"<a\b[^>]*?/?>")
 
     for ev in events:
         summary = esc_html(ev["summary"])
@@ -87,10 +88,12 @@ def write_markdown(strm: TextIO, events: list[dict]) -> int:
                 continue
             key_f = key.replace('_', ' ').capitalize()
             val_f = value.strip(" \n\t")
-            if not is_html.search(val_f):
-                val_f = esc_html(val_f).replace("\n", "<br>\n")
+            if not has_html_break.search(val_f):
+                if not has_html_link.search(val_f):
+                    val_f = esc_html(val_f)
+                val_f = val_f.replace("\n", "<br>\n")
 
-            if is_html.search(val_f):
+            if has_html_break.search(val_f):
                 strm.write(f"<details><summary><b>{key_f}</b></summary>\n{val_f}\n</details>\n")
             else:
                 strm.write(f"<details><summary><b>{key_f}</b>: {val_f}</summary>\n</details>\n")
