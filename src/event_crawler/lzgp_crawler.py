@@ -37,7 +37,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
     url = "https://lzgp.hu/"
 
     _LOCATION = "Palócring, Patvarc"
-    _CALENDAR_LINK_SELECTOR = "img[src*=versenynaptar]"
+    _CALENDAR_LINK_SELECTOR = "img[src*=versenynaptar], img[data-src-fg*=versenynaptar]"
     _IMAGE_FILENAME = "versenynaptar-palocra.webp"
 
     _LENGTH_RE = re.compile(r"(\d+)\s*m\b")
@@ -51,10 +51,14 @@ class LzgpCrawler(SinglePageCrawlerBase):
             print(f"[{self.id}] WARNING: No calendar image link found on page.")
             return []
 
-        img_url = await link.first.get_attribute("src")
-        if not img_url:
-            print(f"[{self.id}] WARNING: Calendar link has no data-src-fg attribute.")
+        img_url = await link.first.get_attribute("data-src-fg")
+        if not img_url or img_url.startswith("data:"):
+            img_url = await link.first.get_attribute("src")
+
+        if not img_url or img_url.startswith("data:"):
+            print(f"[{self.id}] WARNING: Calendar image URL could not be resolved from data-src-fg or src.")
             return []
+
         print(f"[{self.id}] Calendar image URL: {img_url}")
 
         # Download the calendar image
