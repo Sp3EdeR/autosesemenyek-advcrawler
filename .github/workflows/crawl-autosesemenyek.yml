@@ -2,7 +2,11 @@ name: Crawl Autosesemenyek Calendars
 
 on:
   schedule:
-    - cron: "35 3 * * *" # 3:35 daily
+    # 3rd job, attempts to succeed GAS HTML script (5-6CET) and precede event feed
+    # The Run crawler step reuses the GAS script results
+    # NOTE: GitHub actions delay is usually 2-3.5h
+    - cron: "35 4 * * *" # 4:35 daily
+      timezone: "Europe/Budapest"
   workflow_dispatch:     # Manual execution
 
 permissions:

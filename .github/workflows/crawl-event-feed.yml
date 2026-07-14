@@ -2,7 +2,11 @@ name: Crawl Event Feed
 
 on:
   schedule:
-    - cron: "55 4 * * *" # 4:55 daily
+    # Last job in sequence, attempts to succeed autosesemenyek crawler
+    # The `Run Event Deduplication` step reuses the autosesemenyek crawler result
+    # NOTE: GitHub actions delay is usually 2-3.5h
+    - cron: "55 8 * * 5"   # 8:55 every Friday
+      timezone: "Europe/Budapest"
   workflow_dispatch:     # Manual execution
 
 permissions:

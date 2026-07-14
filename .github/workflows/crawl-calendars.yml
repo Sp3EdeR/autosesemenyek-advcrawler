@@ -2,7 +2,11 @@ name: Crawl Calendars
 
 on:
   schedule:
-    - cron: "35 4 * * *" # 4:35 daily
+    # Earliest job in sequence, attempts to precede GAS HTML script (5-6CET)
+    # The GAS HTML script will pick up the crawler results
+    # NOTE: GitHub actions delay is usually 2-3.5h
+    - cron: "35 0 * * *" # 0:35 daily
+      timezone: "Europe/Budapest"
   workflow_dispatch:     # Manual execution
 
 permissions:
