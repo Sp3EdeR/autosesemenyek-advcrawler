@@ -10,7 +10,7 @@ from typing import Any
 
 from playwright.async_api import Page
 from event_crawler.crawler_base import SinglePageCrawlerBase, ParserBase
-from event_crawler.parser_base import HUNGARIAN_MONTHS
+from event_crawler.parser_base import ACCENTED_HUNGARIAN_MONTHS
 
 # Maps track lengths to their canonical names. This is the most reliable way 
 # to identify tracks because the OCR detects length numbers consistently, 
@@ -160,7 +160,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
             avg_y = sum(b["y"] for b in row) / len(row)
 
             # Match Hungarian month names
-            for month_name, month_num in HUNGARIAN_MONTHS.items():
+            for month_name, month_num in ACCENTED_HUNGARIAN_MONTHS.items():
                 if month_name in row_text:
                     month_entries.append((avg_y, month_num))
                     break
