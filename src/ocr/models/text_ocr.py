@@ -1,6 +1,7 @@
 """Text OCR model implementation using standard PaddleOCR."""
 from __future__ import annotations
 
+import cv2
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -41,27 +42,26 @@ class TextOCREngine(BaseOCREngine):
 
     def process(
         self,
-        img_path: str,
+        img_data: cv2.typing.MatLike,
         save_path: Optional[str] = None,
+        log_id: Optional[str] = None,
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """
         Process the image to detect and transcribe text with bounding box coordinates.
 
         Args:
-            img_path: Absolute or relative path to the target image.
+            img_data: Image data stored as a numpy array.
             save_path: Optional output path to save structured JSON results.
+            log_id: Optional log ID for logging.
             **kwargs: Extra execution options for predictions.
 
         Returns:
             A list of dictionaries containing recognized text, confidence scores,
             and bounding box center coordinates (x, y).
         """
-        super().process(img_path)
-
-        print(f"[{self.__class__.__name__}] Processing image: {img_path} for text recognition")
-
-        result = self.model.predict(img_path)
+        super().process(img_data, log_id=log_id)
+        result = self.model.predict(img_data)
         extracted_data: List[Dict[str, Any]] = []
 
         for res in result:

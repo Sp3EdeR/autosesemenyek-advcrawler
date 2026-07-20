@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
-import urllib.request
+import numpy as np
+import cv2
+
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -34,7 +36,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
     """
 
     id = "lzgp"
-    url = "https://lzgp.hu/"
+    url: str = "https://lzgp.hu/"
 
     _LOCATION = "Palócring, Patvarc"
     _CALENDAR_LINK_SELECTOR = "img[src*=versenynaptar], img[data-src-fg*=versenynaptar]"
@@ -60,13 +62,21 @@ class LzgpCrawler(SinglePageCrawlerBase):
             return []
 
         print(f"[{self.id}] Calendar image URL: {img_url}")
+        # In extract_page_data:
+        response = await page.request.get(img_url)
+        if response.status != 200:
+            print(f"[{self.id}] ERROR: Failed to read calendar image from {img_url}")
+            return []
+        img_data = await response.body()
+        img_buffer = np.frombuffer(img_data, dtype=np.uint8)
+        img_array = cv2.imdecode(img_buffer, cv2.IMREAD_COLOR)
 
-        # Download the calendar image
-        img_path = await asyncio.to_thread(self._download_image, img_url)
-        print(f"[{self.id}] Image saved to: {img_path}")
+        if img_array is None:
+            print(f"[{self.id}] ERROR: Failed to read calendar image from {img_url}")
+            return []
 
         # Run text recognition on the downloaded image
-        text_boxes = await asyncio.to_thread(self._run_ocr, img_path)
+        text_boxes = await asyncio.to_thread(self._run_ocr, img_array)
         print(f"[{self.id}] OCR extracted {len(text_boxes)} text regions.")
 
         # Parse the recognized text into structured event objects
@@ -74,16 +84,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
         print(f"[{self.id}] Parsed {len(events)} race events.")
         return events
 
-    # ------------------ helpers ------------------ #
-    def _download_image(self, url: str) -> str:
-        """Downloads the calendar image to the project root and returns its path."""
-        project_root = Path(__file__).resolve().parent.parent.parent
-        img_path = project_root / self._IMAGE_FILENAME
-        print(f"[{self.id}] Downloading image from {url} ...")
-        urllib.request.urlretrieve(url, str(img_path))
-        return str(img_path)
-
-    def _run_ocr(self, img_path: str) -> list[dict[str, Any]]:
+    def _run_ocr(self, img_data: str) -> list[dict[str, Any]]:
         """Runs text recognition on the image and returns bounding box details."""
         # OCREngine is in the project root, which isn't in Python's default import path.
         # We append the project root to sys.path and perform a lazy import to prevent
@@ -94,7 +95,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
 
         from ocr.models.text_ocr import TextOCREngine
         engine = TextOCREngine(lang="hu", enable_mkldnn=False)
-        return engine.process(img_path)
+        return engine.process(img_data, log_id=self.id)
 
 
     @staticmethod

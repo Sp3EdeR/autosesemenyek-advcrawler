@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+from cv2 import typing
 import sys
 from abc import ABC, abstractmethod
 from typing import Any, Optional
@@ -47,20 +47,24 @@ class BaseOCREngine(ABC):
     @abstractmethod
     def process(
         self,
-        img_path: str,
+        img_data: typing.MatLike,
         save_path: Optional[str] = None,
+        log_id: Optional[str] = None,
         **kwargs: Any
     ) -> Any:
         """
         Process the image with the loaded model and extract structured results.
 
         Args:
-            img_path: Absolute or relative path to the target image.
+            img_data: Image data stored as a numpy array.
             save_path: Optional output path to save structured JSON results.
+            log_id: Optional log ID for logging.
             **kwargs: Additional keyword arguments passed directly to the model's prediction method.
 
         Returns:
             Structured results according to the selected model type.
         """
-        if not os.path.exists(img_path):
-            raise FileNotFoundError(f"Target image not found at path: {img_path}")
+        if log_id:
+            print(f"[{log_id}] Processing image for text recognition")
+        if not isinstance(img_data, typing.MatLike):
+            raise TypeError("img_data must be a numpy array")
