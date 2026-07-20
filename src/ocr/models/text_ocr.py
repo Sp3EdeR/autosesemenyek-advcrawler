@@ -1,10 +1,11 @@
 """Text OCR model implementation using standard PaddleOCR."""
 from __future__ import annotations
 
-import cv2
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import cv2
 
 from ocr.base_ocr import BaseOCREngine
 
@@ -43,10 +44,10 @@ class TextOCREngine(BaseOCREngine):
     def process(
         self,
         img_data: cv2.typing.MatLike,
-        save_path: Optional[str] = None,
-        log_id: Optional[str] = None,
+        save_path: str | None = None,
+        log_id: str | None = None,
         **kwargs: Any
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process the image to detect and transcribe text with bounding box coordinates.
 
@@ -62,7 +63,7 @@ class TextOCREngine(BaseOCREngine):
         """
         super().process(img_data, log_id=log_id)
         result = self.model.predict(img_data)
-        extracted_data: List[Dict[str, Any]] = []
+        extracted_data: list[dict[str, Any]] = []
 
         for res in result:
             if res is None:
@@ -71,7 +72,7 @@ class TextOCREngine(BaseOCREngine):
             scores = res.get("rec_scores", [])
             polys = res.get("dt_polys", [])
 
-            for text, score, poly in zip(texts, scores, polys):
+            for text, score, poly in zip(texts, scores, polys, strict=False):
                 text = text.strip()
                 if not text:
                     continue

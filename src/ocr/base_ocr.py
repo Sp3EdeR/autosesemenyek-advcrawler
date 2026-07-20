@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from cv2 import typing
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
+
+from cv2 import typing
 
 # Force UTF-8 console output on Windows to prevent encoding errors
 if sys.platform == "win32":
@@ -48,8 +49,8 @@ class BaseOCREngine(ABC):
     def process(
         self,
         img_data: typing.MatLike,
-        save_path: Optional[str] = None,
-        log_id: Optional[str] = None,
+        save_path: str | None = None,
+        log_id: str | None = None,
         **kwargs: Any
     ) -> Any:
         """

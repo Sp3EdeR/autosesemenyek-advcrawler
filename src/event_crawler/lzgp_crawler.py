@@ -3,15 +3,15 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
-import numpy as np
-import cv2
-
 from datetime import date
 from pathlib import Path
 from typing import Any
 
+import cv2
+import numpy as np
 from playwright.async_api import Page
-from event_crawler.crawler_base import SinglePageCrawlerBase, ParserBase
+
+from event_crawler.crawler_base import ParserBase, SinglePageCrawlerBase
 from event_crawler.parser_base import ACCENTED_HUNGARIAN_MONTHS
 
 # Maps track lengths to their canonical names. This is the most reliable way 
