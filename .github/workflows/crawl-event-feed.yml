@@ -62,6 +62,15 @@ jobs:
           key: camoufox-${{ runner.os }}-${{ steps.camoufox-version.outputs.version }}
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
+      - name: Cache PaddleOCR models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.paddleocr
+            ~/.paddlex
+          key: paddleocr-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            paddleocr-${{ runner.os }}-
       - name: Run crawler
         run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus' --output feed/events.json
       - name: Run Event Deduplication

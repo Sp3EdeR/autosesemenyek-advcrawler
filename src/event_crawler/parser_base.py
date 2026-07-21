@@ -22,6 +22,22 @@ HUNGARIAN_MONTHS = {
     "december": 12,
 }
 
+ACCENTED_HUNGARIAN_MONTHS = {
+    "január": 1,
+    "február": 2,
+    "március": 3,
+    "április": 4,
+    "május": 5,
+    "június": 6,
+    "július": 7,
+    "augusztus": 8,
+    "szeptember": 9,
+    "október": 10,
+    "november": 11,
+    "december": 12,
+}
+
+
 T = TypeVar("T")
 
 class ParserBase:
