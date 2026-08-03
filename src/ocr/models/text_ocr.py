@@ -46,6 +46,7 @@ class TextOCREngine(BaseOCREngine):
         img_data: cv2.typing.MatLike,
         save_path: str | None = None,
         log_id: str | None = None,
+        confidence_threshold: float | None = None,
         **kwargs: Any
     ) -> list[dict[str, Any]]:
         """
@@ -55,6 +56,8 @@ class TextOCREngine(BaseOCREngine):
             img_data: Image data stored as a numpy array.
             save_path: Optional output path to save structured JSON results.
             log_id: Optional log ID for logging.
+            confidence_threshold: If set, drops detections whose confidence score
+                is below this value (0-1).
             **kwargs: Extra execution options for predictions.
 
         Returns:
@@ -76,6 +79,9 @@ class TextOCREngine(BaseOCREngine):
                 text = text.strip()
                 if not text:
                     continue
+                score = float(score)
+                if confidence_threshold is not None and score < confidence_threshold:
+                    continue
 
                 if poly.any():
                     y_center = sum(float(p[1]) for p in poly) / len(poly)
@@ -86,8 +92,8 @@ class TextOCREngine(BaseOCREngine):
 
                 extracted_data.append({
                     "text": text,
-                    "score": float(score),
-                    "confidence": float(score),
+                    "score": score,
+                    "confidence": score,
                     "y": y_center,
                     "x": x_center,
                 })

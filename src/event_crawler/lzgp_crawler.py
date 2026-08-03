@@ -44,6 +44,11 @@ class LzgpCrawler(SinglePageCrawlerBase):
 
     _LENGTH_RE = re.compile(r"(\d+)\s*m\b")
 
+    # --- OCR-related configuration ---
+    _OCR_LANG = "hu"
+    _OCR_CONFIDENCE_THRESHOLD = 0.7
+
+
     async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Extract race calendar events from the lzgp.hu page."""
 
@@ -84,18 +89,15 @@ class LzgpCrawler(SinglePageCrawlerBase):
         print(f"[{self.id}] Parsed {len(events)} race events.")
         return events
 
-    def _run_ocr(self, img_data: str) -> list[dict[str, Any]]:
+    def _run_ocr(self, img_data: cv2.typing.MatLike) -> list[dict[str, Any]]:
         """Runs text recognition on the image and returns bounding box details."""
-        # OCREngine is in the project root, which isn't in Python's default import path.
-        # We append the project root to sys.path and perform a lazy import to prevent
-        # import issues during orchestration module discovery.
-        project_root = str(Path(__file__).resolve().parent.parent.parent)
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
-
         from ocr.models.text_ocr import TextOCREngine
-        engine = TextOCREngine(lang="hu", enable_mkldnn=False)
-        return engine.process(img_data, log_id=self.id)
+        engine = TextOCREngine(lang=self._OCR_LANG, enable_mkldnn=False)
+        return engine.process(
+            img_data,
+            log_id=self.id,
+            confidence_threshold=self._OCR_CONFIDENCE_THRESHOLD,
+        )
 
 
     @staticmethod
