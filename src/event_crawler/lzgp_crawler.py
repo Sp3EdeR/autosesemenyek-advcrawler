@@ -130,75 +130,67 @@ class LzgpCrawler(SinglePageCrawlerBase):
 
     @staticmethod
     def _detect_year(rows: list[list[dict[str, Any]]]) -> int:
-        """Extracts the calendar year from the text, falling back to the current year."""
+        """Extracts the calendar year from the text.
+
+        Raises:
+            RuntimeError: If no plausible year can be detected from the OCR
+                text, notifies callers.
+        """
+        current_year = date.today().year
         for row in rows:
             for box in row:
                 # Look for a standard year format like "2026"
-                match = re.search(r"20(\d{2})", box["text"])
-                if match:
-                    return 2000 + int(match.group(1))
-                # Fallback for OCR errors/artifacts like "026|"
-                match = re.search(r"0(\d{2})\|", box["text"])
-                if match:
-                    suffix = int(match.group(1))
-                    if 20 <= suffix <= 40:
-                        return 2000 + suffix
-        return date.today().year
+                match = re.search(r"20\d{2}", box["text"])
+                if match and (int(match.group(0)) == current_year or 
+                              int(match.group(0)) == current_year - 1 or
+                              int(match.group(0)) == current_year + 1 ):
+                    return int(match.group(0))
+
+        raise RuntimeError(
+            f"[{LzgpCrawler.id}] Could not detect the calendar year from OCR "
+            "text."
+        )
 
     def _parse_events(self, text_boxes: list[dict[str, Any]]) -> ParserBase.Result:
         """Parses recognized text blocks into structured race events.
 
-        Algorithm:
+        Each data row carries the month, day, and track length together:
         1. Group text boxes into horizontal rows.
-        2. Find where the month names are positioned, and identify data rows
-           by checking for track length patterns (e.g., '1200m').
-        3. For each data row, associate it with the closest preceding month header,
-           extract the day of the month, and determine the track name from the length.
+        2. Identify data rows by the track length at row[3].
+        3. Extract the month from row[1] and the day from the row, then build the event.
         """
         rows = self._cluster_rows(text_boxes)
         year = self._detect_year(rows)
 
-        # Pass 1: Identify Y-positions for months and active race rows
-        month_entries: list[tuple[float, int]] = []   # (y_center, month_num)
-        data_rows: list[tuple[float, list[dict], str]] = []  # (y, row, length)
-
-        for row in rows:
-            row_text = " ".join(b["text"] for b in row).lower()
-            avg_y = sum(b["y"] for b in row) / len(row)
-
-            # Match Hungarian month names
-            for month_name, month_num in ACCENTED_HUNGARIAN_MONTHS.items():
-                if month_name in row_text:
-                    month_entries.append((avg_y, month_num))
-                    break
-
-            # Find data rows containing a track length
-            for box in row:
-                m = self._LENGTH_RE.search(box["text"])
-                if m:
-                    data_rows.append((avg_y, row, f"{m.group(1)}m"))
-                    break
-
-        month_entries.sort(key=lambda e: e[0])
-
-        # Pass 2: Build event dictionaries
         events: ParserBase.Result = []
 
-        for data_y, row_boxes, track_length in data_rows:
-            # Link each row to the closest month situated above it
-            assigned_month: int | None = None
-            for m_y, m_num in month_entries:
-                if m_y <= data_y + 30:
-                    assigned_month = m_num
+        for row in rows:
+            if len(row) < 4:
+                continue
 
+            # Track length always sits at row[3]
+            m = self._LENGTH_RE.search(row[3]["text"])
+            if not m:
+                continue
+            track_length = f"{m.group(1)}m"
+
+            avg_y = sum(b["y"] for b in row) / len(row)
+
+            # Month is in the same row at row[1]
+            normalized_month_data = self._normalize_text_for_match(row[1]["text"])
+            assigned_month = next(
+                (month_num for month_name, month_num in HUNGARIAN_MONTHS.items()
+                 if month_name in normalized_month_data),
+                None,
+            )
             if assigned_month is None:
-                print(f"[{self.id}] Could not assign month for row at y={data_y:.0f}")
+                print(f"[{self.id}] Could not assign month for row at y={avg_y:.0f}")
                 continue
 
             # Parse the day number
-            day = self._extract_day(row_boxes)
+            day = self._extract_day(row)
             if day is None:
-                print(f"[{self.id}] Could not extract day for row at y={data_y:.0f}")
+                print(f"[{self.id}] Could not extract day for row at y={avg_y:.0f}")
                 continue
 
             # Map the track length to its canonical name
