@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-import sys
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 import cv2
@@ -12,7 +10,7 @@ import numpy as np
 from playwright.async_api import Page
 
 from event_crawler.crawler_base import ParserBase, SinglePageCrawlerBase
-from event_crawler.parser_base import ACCENTED_HUNGARIAN_MONTHS
+from event_crawler.parser_base import HUNGARIAN_MONTHS
 
 # Maps track lengths to their canonical names. This is the most reliable way 
 # to identify tracks because the OCR detects length numbers consistently, 
@@ -25,6 +23,13 @@ _LENGTH_TO_TRACK: dict[str, str] = {
     "782m": "5. nyomvonal",
 }
 
+# Vertical proximity threshold for line segmentation algorithms.
+# Controls bounding box aggregation along the Y-axis.
+# Value impact:
+#   - High: merges adjacent rows into single horizontal strings.
+#   - Low: breaks individual sentences into distinct vertical fragments.
+Y_THRESHOLD: float = 25.0
+
 class LzgpCrawler(SinglePageCrawlerBase):
     """Crawler for the LZGP Gokart Championship race calendar on lzgp.hu.
 
@@ -36,7 +41,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
     """
 
     id = "lzgp"
-    url: str = "https://lzgp.hu/"
+    url = "https://lzgp.hu/"
 
     _LOCATION = "Palócring, Patvarc"
     _CALENDAR_LINK_SELECTOR = "img[src*=versenynaptar], img[data-src-fg*=versenynaptar]"
@@ -102,8 +107,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
 
     @staticmethod
     def _cluster_rows(
-        boxes: list[dict[str, Any]],
-        y_threshold: float = 25.0,
+        boxes: list[dict[str, Any]]
     ) -> list[list[dict[str, Any]]]:
         """Groups bounding boxes into horizontal rows based on y coordinate proximity."""
         if not boxes:
@@ -114,7 +118,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
 
         for box in sorted_boxes[1:]:
             avg_y = sum(b["y"] for b in rows[-1]) / len(rows[-1])
-            if abs(box["y"] - avg_y) <= y_threshold:
+            if abs(box["y"] - avg_y) <= Y_THRESHOLD:
                 rows[-1].append(box)
             else:
                 rows.append([box])
