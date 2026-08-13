@@ -62,15 +62,6 @@ jobs:
           key: camoufox-${{ runner.os }}-${{ steps.camoufox-version.outputs.version }}
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
-      - name: Resolve PaddleOCR version
-        id: paddleocr-version
-        shell: bash
-        run: echo "version=$(poetry run python -c 'import paddleocr; print(paddleocr.__version__)')" >> "$GITHUB_OUTPUT"
-      - name: Cache PaddleOCR models
-        uses: actions/cache@v4
-        with:
-          path: ~/.paddlex
-          key: paddlex-${{ runner.os }}-${{ steps.paddleocr-version.outputs.version }}
       - name: Run crawler
         run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus' --output feed/events.json
       - name: Run Event Deduplication
