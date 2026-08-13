@@ -141,9 +141,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
             for box in row:
                 # Look for a standard year format like "2026"
                 match = re.search(r"20\d{2}", box["text"])
-                if match and (int(match.group(0)) == current_year or 
-                              int(match.group(0)) == current_year - 1 or
-                              int(match.group(0)) == current_year + 1 ):
+                if match and current_year -1 <= int(match.group(0)) <= current_year + 1 :
                     return int(match.group(0))
 
         raise RuntimeError(
