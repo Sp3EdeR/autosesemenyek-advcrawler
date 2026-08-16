@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import re
 from datetime import date
 from typing import Any
 
-import cv2
-import numpy as np
 from playwright.async_api import Page
 
 from event_crawler.crawler_base import ParserBase, SinglePageCrawlerBase
@@ -54,6 +53,18 @@ class LzgpCrawler(SinglePageCrawlerBase):
     _OCR_CONFIDENCE_THRESHOLD = 0.7
 
 
+    def _initialize_image_dependencies(self) -> tuple[Any, Any]:
+        """Load optional image-processing dependencies when image parsing starts."""
+        try:
+            cv2 = importlib.import_module("cv2")
+            numpy = importlib.import_module("numpy")
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "The LZGP crawler requires the 'ocr' extra to process its calendar image."
+            ) from exc
+
+        return cv2, numpy
+
     async def extract_page_data(self, page: Page) -> ParserBase.Result:
         """Extract race calendar events from the lzgp.hu page."""
 
@@ -68,7 +79,10 @@ class LzgpCrawler(SinglePageCrawlerBase):
             img_url = await link.first.get_attribute("src")
 
         if not img_url or img_url.startswith("data:"):
-            print(f"[{self.id}] WARNING: Calendar image URL could not be resolved from data-src-fg or src.")
+            print(
+                f"[{self.id}] WARNING: Calendar image URL could not be resolved "
+                "from data-src-fg or src."
+            )
             return []
 
         print(f"[{self.id}] Calendar image URL: {img_url}")
@@ -78,6 +92,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
             print(f"[{self.id}] ERROR: Failed to read calendar image from {img_url}")
             return []
         img_data = await response.body()
+        cv2, np = self._initialize_image_dependencies()
         img_buffer = np.frombuffer(img_data, dtype=np.uint8)
         img_array = cv2.imdecode(img_buffer, cv2.IMREAD_COLOR)
 
@@ -94,7 +109,7 @@ class LzgpCrawler(SinglePageCrawlerBase):
         print(f"[{self.id}] Parsed {len(events)} race events.")
         return events
 
-    def _run_ocr(self, img_data: cv2.typing.MatLike) -> list[dict[str, Any]]:
+    def _run_ocr(self, img_data: Any) -> list[dict[str, Any]]:
         """Runs text recognition on the image and returns bounding box details."""
         from ocr.models.text_ocr import TextOCREngine
         engine = TextOCREngine(lang=self._OCR_LANG, enable_mkldnn=False)
