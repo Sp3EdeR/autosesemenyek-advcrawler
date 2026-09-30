@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import importlib
 import os
+from collections import defaultdict
 from datetime import date
-from itertools import groupby
 from typing import Any
 
 from playwright.async_api import Locator, Page
@@ -127,9 +127,10 @@ class SodiWSeriesCrawler(CrawlerBase):
             return f"{prefix}{desc}{postfix}" if desc else ""
 
         result = []
-        groups = groupby(aggregate, key=lambda item: (item["event"]["dtstart"], item["event"].get("track")))
-        for _, group in groups:
-            events = list(group)
+        groups = defaultdict(list)
+        for item in aggregate:
+            groups[(item["event"]["dtstart"], item["event"].get("track"))].append(item)
+        for events in groups.values():
             e1 = events[0]['event']
 
             location = []
