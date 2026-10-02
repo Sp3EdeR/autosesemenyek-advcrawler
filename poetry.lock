@@ -426,48 +426,48 @@ all = ["orjson"]
 
 [[package]]
 name = "btrees"
-version = "6.5"
+version = "6.4"
 description = "Scalable persistent object containers"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"dedupe\""
 files = [
-    {file = "btrees-6.5-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:d498d41eb78427a311e9ee1b5e97323deea269263c9a121bcef44c8250041173"},
-    {file = "btrees-6.5-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:98af67a7c8b807631f955696e5f40996e5cafeee91e5767d9fd12b07dd8a0920"},
-    {file = "btrees-6.5-cp310-cp310-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:5466c3724d4ccdfc712bc7ac60d9c9395d5dc62c29b5eb7b0eb9d4a8a3a4955d"},
-    {file = "btrees-6.5-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f4ba8b6bbb78d02f69ce37a14ee0e40f579773d83308805f94aa7880d7bae227"},
-    {file = "btrees-6.5-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:bc4899095b5d194b9c12e596407c8cf2cb1010b1a909603ea349d21893509354"},
-    {file = "btrees-6.5-cp310-cp310-win_amd64.whl", hash = "sha256:0f79c6fd34e63764f087774269405a59d5effed1a74a6ad348dee26506c82fe2"},
-    {file = "btrees-6.5-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:8fe6a5c6e0380d16c524f6b2c5900584c2d1f2c453e2f31eed9e334058effe8f"},
-    {file = "btrees-6.5-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:c4252b0ad94ecc05923075614dc794492c877b42ef92da32672206df05a99c99"},
-    {file = "btrees-6.5-cp311-cp311-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:28f8d9cbeee4c3987143db801ac875a3ee6413b97a87a5847ec4151bd238fcaf"},
-    {file = "btrees-6.5-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:fed68f66b3fab37bc6d91c40281ea59cd58247d9c9f974882b8dfa3bb39bae48"},
-    {file = "btrees-6.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ea9a5e45ee42bd0e9f9ea8a2429b116f0271b10c25b61855090dc4848f13ca3c"},
-    {file = "btrees-6.5-cp311-cp311-win_amd64.whl", hash = "sha256:8e48118d886d0ff850003600ff15b05b759673a9d65aabff54f7101d74159454"},
-    {file = "btrees-6.5-cp311-cp311-win_arm64.whl", hash = "sha256:1304f9ae8e92f8b873a0785f94e830e5f82968ab5f0a55cd3ccd3650a94fe4ad"},
-    {file = "btrees-6.5-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:d5f95906158dacfc03585c6daac33049eadfa2bc5660b635c31052c90f222144"},
-    {file = "btrees-6.5-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:53fe57cc8ada46241c6e7f29d9402f0efd0fcd76238a6be8be39bb530dcb0a04"},
-    {file = "btrees-6.5-cp312-cp312-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:6980d423087ae13c52e6a7ad67fc196dc9dae0bfc4db3363a75f74e0f5e7f283"},
-    {file = "btrees-6.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:73eb629f1e151fe9b7d6124aacb5b94f831b4c64851131d5cfe19fc5a2c70fce"},
-    {file = "btrees-6.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:6f49bea744a126a2c6538941132c4aba2985a6b2a2f8734e85d1c70a4539b941"},
-    {file = "btrees-6.5-cp312-cp312-win_amd64.whl", hash = "sha256:a90aa1a0873695b0dd849176887443fa5a91a49be8579e372b2664216a4a3616"},
-    {file = "btrees-6.5-cp312-cp312-win_arm64.whl", hash = "sha256:d37905375edd2559e084e51f42352bf2dc7bccc26141e812de09a8fed9d020b4"},
-    {file = "btrees-6.5-cp313-cp313-macosx_10_9_x86_64.whl", hash = "sha256:01004ecd2a33500b52088c624dd911d9f3404ab89799b0ca2538c2665bc498ec"},
-    {file = "btrees-6.5-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:6e96ceaebab41d9160c7eae6d40abeefd606dacece55d974b641109f8aaf868e"},
-    {file = "btrees-6.5-cp313-cp313-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:5fe1d841eb487fba4d221fc448c0b2383cee4a7bc0dc755b045591745fe240a4"},
-    {file = "btrees-6.5-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:1c4226971ef4b35760fd7e96823eb2101c4657743e28e020a0b5560cc79cf66d"},
-    {file = "btrees-6.5-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:52ec96ac4d9bf4832b44d12a591e1cd2665141736bc20744027a14d47f74683a"},
-    {file = "btrees-6.5-cp313-cp313-win_amd64.whl", hash = "sha256:4012a3756619011509fc30d3995a721e664271ba3b68efa342615dd2897ffe29"},
-    {file = "btrees-6.5-cp313-cp313-win_arm64.whl", hash = "sha256:d454d404fb118f711ecaf6c98d6622a36644bf79cbc710ea964a0eb79bbf6f5f"},
-    {file = "btrees-6.5-cp314-cp314-macosx_10_9_x86_64.whl", hash = "sha256:6544bd4b7f51b31bf92430a7694d711301571bd090573a2dd6261d61824358c3"},
-    {file = "btrees-6.5-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:25716892d0169079da8e9366a68000b62e036afc14f8de08ca923a80ca89a166"},
-    {file = "btrees-6.5-cp314-cp314-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:80b9f3ad7c6f37309948760800bdd305eb0546c4a3c0670eced1a34b45c48577"},
-    {file = "btrees-6.5-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:e4527a843b0f71a41b32d52ab907c2b6dbf3dfe9dd39cce3ff07256b92a01b6b"},
-    {file = "btrees-6.5-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:80d6f4053663a4f5594480e52b19f77d4cebf77772f718100a1dc91069c2c692"},
-    {file = "btrees-6.5-cp314-cp314-win_amd64.whl", hash = "sha256:1957380554e5d4aa4fcc7cde5bbbff8869f9b394f6fb02ee1552af62d2d2984a"},
-    {file = "btrees-6.5-cp314-cp314-win_arm64.whl", hash = "sha256:704d2f55ca4317aa863332a6157af6f1199437c9edd356ec2684658e77fcf379"},
-    {file = "btrees-6.5.tar.gz", hash = "sha256:1876cad0ebcac3f68dadcdca8018ea6cb76b334f9991a73aa85cbb0cb8fd8cf0"},
+    {file = "btrees-6.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c788e4d87cd7abbec84769bc8e0654f7b2740796703900b687285235564e0262"},
+    {file = "btrees-6.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:7f261f0dba8849f8bbf8ad7c55a5601cc63a3c4400b7daf508818c17bf0822f4"},
+    {file = "btrees-6.4-cp310-cp310-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:81a1eafb61632001f2a1f2d4d4e32e8ed8ef1048733ea3cf663b9b6223b98105"},
+    {file = "btrees-6.4-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:fe20d1c01677e307d80dc6ce6d23d10611b9a27cf4d62e6cae06a5e6fe2c15a9"},
+    {file = "btrees-6.4-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:b239dd477f7fdf523efb28fd6e1470e3201b3e0e5bfe86e37f2eecc14dcde76d"},
+    {file = "btrees-6.4-cp310-cp310-win_amd64.whl", hash = "sha256:76ac38de2fbda1d29e387911ee9cc40dca50347c81011d4e0e3f553213d93fd3"},
+    {file = "btrees-6.4-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:30de888c9d76cf48c4e9559fb087de2d0f1851d14abbac3b5e04d17fab097596"},
+    {file = "btrees-6.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:b76991c2189628b37e0ec36fa6ab847a4f87f808b94c28e301331a29d0eb95f1"},
+    {file = "btrees-6.4-cp311-cp311-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:3647af0f1e59b060962be4905b4ab67d0ef5a6d59aa8374325f6d0e03e00681c"},
+    {file = "btrees-6.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:130514e3a02d21a6035cb8adabac28cddf0ab9281d11223e3afe556423568b12"},
+    {file = "btrees-6.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:f158880e29f1755d495359f7646324e44536c4458d6cc45b61f46694668502f2"},
+    {file = "btrees-6.4-cp311-cp311-win_amd64.whl", hash = "sha256:e2a20e9292615abb9924ee17ca98b5ac6a407f59f1d21fedb6feb1cea1b3f6bf"},
+    {file = "btrees-6.4-cp311-cp311-win_arm64.whl", hash = "sha256:5590c738807083a28be1ebdbafa7d76fae5ac76d565f11e07a655e9003f7a4bf"},
+    {file = "btrees-6.4-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:214b13b5ba513ab14318d7204e6e557563d558263efb561d7de3c07e39e48559"},
+    {file = "btrees-6.4-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2264466bd552616b858db0c962ef09835465a8ac7441e7bcdf90664a60617228"},
+    {file = "btrees-6.4-cp312-cp312-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:9e5f239dcb6c8c7cf6a88b2cbe3fd87b56ac74663f359196ecf046240fd27a21"},
+    {file = "btrees-6.4-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:ab03dc9beb5b1bfc36ff5f471d215cd6385a33b53935ee78f804a8319ae3578e"},
+    {file = "btrees-6.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:171e41bcfcddbd216d2341463877d0e966af4932712f7e8174f8a9d89e7d01c3"},
+    {file = "btrees-6.4-cp312-cp312-win_amd64.whl", hash = "sha256:3a0306bed7aafdfc932e1e6ba3be1cfd1b040a2b72ea1fdbbbbeacdd1e7c6f76"},
+    {file = "btrees-6.4-cp312-cp312-win_arm64.whl", hash = "sha256:6cdbf588b3b2f28886909c6e8cd9107ea926ff23622d0a8f9ad6210bd27d531f"},
+    {file = "btrees-6.4-cp313-cp313-macosx_10_9_x86_64.whl", hash = "sha256:eca84184958c35494476aa3c3565843333cfa87c5fa8590799f4d29321c75793"},
+    {file = "btrees-6.4-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:bb47477bb240b25d70cb8817373929fc2923c81a7beea3da7e5df16f59b93d81"},
+    {file = "btrees-6.4-cp313-cp313-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:17ef3765c7bd4afc85a71ef6facd96baf14b235448a8b0abb75218328f6aa483"},
+    {file = "btrees-6.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:ede0f3fd0f0a22545d50ee2d8aa286af709fa1a20685cb706844326980205bf3"},
+    {file = "btrees-6.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:39faf62c9f28d8aef82034aad3acb42ef10417cc295b610d55f809c91055cd73"},
+    {file = "btrees-6.4-cp313-cp313-win_amd64.whl", hash = "sha256:78f73ac4e089d18d67ef9c3c52c6d58bbc94b5ebfd9c20444a59ed32a568ed54"},
+    {file = "btrees-6.4-cp313-cp313-win_arm64.whl", hash = "sha256:c5b654abd6e0e68494a33fca0a455ce194e6f177dbae584c23afc3065b015322"},
+    {file = "btrees-6.4-cp314-cp314-macosx_10_9_x86_64.whl", hash = "sha256:10b1e1b07d9f12a3038e5f2ec94bcf97727e24362b7e94bd5b2de1c880a023ae"},
+    {file = "btrees-6.4-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:4c19cfdf9a19e3eb8f749d8d8f5bde82f2b872e35ebbbe76ff73f38964e06feb"},
+    {file = "btrees-6.4-cp314-cp314-manylinux1_i686.manylinux2014_i686.manylinux_2_17_i686.manylinux_2_5_i686.whl", hash = "sha256:5d5673b11b615cc2f7563a4f724b5a5ea4ef7be8397b15406acb51ab4ca83561"},
+    {file = "btrees-6.4-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:241b0936a67ebfeee2aaefd1cf79417304738886a3024fab616c03b718d20271"},
+    {file = "btrees-6.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:33ce4c207e63414f7c073710b979d6f452ffd2e020864e2f2f83a3d4812e010c"},
+    {file = "btrees-6.4-cp314-cp314-win_amd64.whl", hash = "sha256:2dc4eb8dc7c17cf5f1427f16630b1785f8d60d6bf23986126659c2c3bc87aa0c"},
+    {file = "btrees-6.4-cp314-cp314-win_arm64.whl", hash = "sha256:2a46725fd2b8c22166185eb7a7aead433129c5eafbece8ba45345389eca78587"},
+    {file = "btrees-6.4.tar.gz", hash = "sha256:35c878ff0c42048223552e31848168f3e88bc3b3654e70146f99b3c04d3d0311"},
 ]
 
 [package.dependencies]
@@ -5651,10 +5651,10 @@ docs = ["Sphinx", "furo", "repoze.sphinx.autointerface"]
 test = ["zope.security (>=7.3)", "zope.testrunner (>=6.4)"]
 
 [extras]
-dedupe = ["dedupe", "dedupe-variable-datetime"]
+dedupe = ["btrees", "dedupe", "dedupe-variable-datetime"]
 ocr = ["numpy", "opencv-python", "paddleocr", "paddlepaddle"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "ffe83a76fb9bf6aedb6c00a15189319f03d68faa13b66f5a536896a108c0bfd6"
+content-hash = "16579414392c9f82e35a030d9063dab869f1fa57e9b8431fac75e57f06c01e97"
