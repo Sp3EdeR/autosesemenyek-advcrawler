@@ -1,0 +1,18 @@
+name: Sync events to GitHub Project
+description: Sync event drafts and their statuses in the repository owner's GitHub Project.
+inputs:
+  events_file:
+    description: Path to the events JSON file
+    required: true
+  project_token:
+    description: Fine-grained token with account Projects read/write
+    required: true
+  project_owner:
+    description: Repository owner whose project is updated
+    required: true
+  project_number:
+    description: Project number
+    required: true
+runs:
+  using: node24
+  main: index.js

@@ -72,6 +72,11 @@ jobs:
         run: poetry run python -u -m feed_formatter.main feed/events.json feed/FULLFEED.md
       - name: Create new markdown feed
         run: poetry run python -u -m feed_formatter.main feed/new_events.json feed/README.md
+      - name: Publish dashboard push trigger
+        # Push workflows must also exist on the branch receiving the push.
+        run: |
+          mkdir -p feed/.github/workflows
+          cp .github/workflows/update-dashboard.yml feed/.github/workflows/update-dashboard.yml
       - name: Push crawler output to feed branch
         uses: actions-js/push@v1.5
         with:
