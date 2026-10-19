@@ -1,0 +1,43 @@
+name: Update Dashboard
+
+on:
+  push:
+    branches: [feed]
+  workflow_run:
+    workflows: [Crawl Event Feed]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-dashboard
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout action source
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: source
+          persist-credentials: false
+      - name: Checkout feed branch
+        uses: actions/checkout@v6
+        with:
+          ref: feed
+          path: feed
+          persist-credentials: false
+      - name: Sync new events to project
+        uses: ./source/.github/actions/sync-project
+        with:
+          events_file: feed/new_events.json
+          project_token: ${{ secrets.PROJECTS_TOKEN }}
+          project_owner: ${{ github.repository_owner }}
+          project_number: ${{ vars.PROJECT_NUMBER }}
