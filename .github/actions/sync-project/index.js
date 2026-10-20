@@ -1,5 +1,5 @@
 const { createHash } = require('node:crypto');
-const { readFile } = require('node:fs/promises');
+const { readFile, writeFile, appendFile } = require('node:fs/promises');
 
 /** Normalize identity text without depending on punctuation, accents or spacing. */
 function normalize(value) {
@@ -246,6 +246,7 @@ async function sync(api, owner, number, events) {
       throw new Error(`Duplicate input event ID: ${event.id}`);
     seen.add(event.id);
   }
+  const report = { events: [] };
   // Process each event, creating or updating project items as necessary.
   for (const event of events) {
     // Check if the event already has a corresponding project item.
@@ -276,6 +277,18 @@ async function sync(api, owner, number, events) {
     const end = dateOnly(event.dtend);
     await setField(item.id, 'End', end ? { date: end } : null);
     await setField(item.id, 'Location', event.location ? { text: event.location } : null);
+
+    // Create a report file
+    const oldStatus = item?.status?.name ?? null;
+    const newStatus = fresh || unfinished || oldStatus === 'Old' ? 'Todo' : oldStatus;
+    report.events.push({
+      event_id: event.id,
+      item_id: item.id,
+      title: event.summary,
+      is_new: fresh,
+      old_status: oldStatus,
+      new_status: newStatus
+    });
   }
 
   // Mark absent Todo items as Old.
@@ -287,6 +300,7 @@ async function sync(api, owner, number, events) {
     }
   }
   console.log(`Synced ${events.length} events; marked ${old} absent Todo items Old.`);
+  return report;
 }
 
 /** Read action inputs without needing an Actions SDK or installed dependencies. */
@@ -302,7 +316,10 @@ async function main() {
   if (!Number.isSafeInteger(number) || number < 1)
     throw new Error('Invalid project number.');
   const events = loadEvents(JSON.parse(await readFile(input('events_file'), 'utf8')));
-  await sync(client, input('project_owner'), number, events);
+  const report = await sync(client, input('project_owner'), number, events);
+  const reportFile = input('report_file');
+  await writeFile(reportFile, JSON.stringify(report, null, 2), 'utf8');
+  await appendFile(process.env.GITHUB_OUTPUT, `report_file=${reportFile}\n`);
 }
 
 module.exports = { normalize, dateOnly, eventId, markdown, description, loadEvents,

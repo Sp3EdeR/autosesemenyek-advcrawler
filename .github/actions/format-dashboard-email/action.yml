@@ -1,0 +1,21 @@
+name: Format dashboard notification
+description: Render a Hungarian HTML email listing newly created dashboard events.
+inputs:
+  project_owner:
+    description: User project owner, matching the sync-project input
+    required: true
+  project_number:
+    description: Project number, matching the sync-project input
+    required: true
+  report_file:
+    description: JSON report produced by sync-project
+    required: true
+  html_file:
+    description: Path for the rendered HTML email
+    required: true
+outputs:
+  html_file:
+    description: Path to the rendered HTML email, or empty when there are no new events
+runs:
+  using: node24
+  main: index.js
