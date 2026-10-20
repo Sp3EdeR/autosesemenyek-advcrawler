@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>&Uacute;j aut&oacute;s esem&eacute;nyek</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f3f4;color:#242424;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+    {{new_count}} &uacute;j esem&eacute;ny ker&uuml;lt az Aut&oacute;s Esem&eacute;nyek Feedre.
+  </div>
+  <table role="presentation" style="width:100%;border-collapse:collapse;background-color:#f1f3f4;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="600"
+        style="width:100%;max-width:600px;border-collapse:separate;border-spacing:0;
+          border-radius:16px;background-color:#ffffff;">
+        <tr><td style="padding:28px 28px 18px;border-top:6px solid #1769aa;
+          border-radius:16px 16px 0 0;
+          font-family:Verdana,Geneva,sans-serif;font-size:13px;color:#555555;">
+          AUT&Oacute;S ESEM&Eacute;NYEK FEED
+        </td></tr>
+        <tr><td style="padding:0 28px 24px;font-family:Georgia,serif;">
+          <h1 style="margin:0;font-size:28px;line-height:1.3;font-weight:normal;">
+            {{new_count}} &uacute;j esem&eacute;ny v&aacute;r r&aacute;d
+          </h1>
+          <p style="margin:16px 0 0;font-family:Verdana,Geneva,sans-serif;
+            font-size:15px;line-height:1.7;">
+            Friss&uuml;lt az esem&eacute;nyt&aacute;bla. N&eacute;zd meg az &uacute;j programokat!
+          </p>
+        </td></tr>
+        <tr><td align="center" style="padding:4px 28px 32px;">
+          <table role="presentation" style="width:100%;border-collapse:collapse;">
+            <tr><td align="center" bgcolor="#1769aa" style="border-radius:12px;">
+              <a href="{{project_url}}" style="display:block;padding:20px 12px;
+                border:1px solid #1769aa;border-radius:12px;color:#ffffff;
+                font-family:Verdana,Geneva,sans-serif;font-size:18px;font-weight:bold;
+                line-height:1.5;text-decoration:none;text-align:center;">
+                Esem&eacute;nyt&aacute;bla megnyit&aacute;sa &rarr;
+              </a>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:24px 28px;border-top:1px solid #e2e5e7;
+          font-family:Verdana,Geneva,sans-serif;font-size:15px;line-height:1.7;">
+          <h2 style="margin:0 0 20px;font-size:17px;">&Uacute;j esem&eacute;nyek</h2>
+          <ul style="margin:0;padding-left:22px;">{{event_titles}}</ul>
+        </td></tr>
+        <tr><td style="padding:20px 28px;background-color:#e8f1f8;border-radius:0 0 16px 16px;
+          font-family:Verdana,Geneva,sans-serif;font-size:12px;line-height:1.7;color:#36566f;">
+          Automatikus &eacute;rtes&iacute;t&eacute;s az Aut&oacute;s Esem&eacute;nyek Feedr&#337;l.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

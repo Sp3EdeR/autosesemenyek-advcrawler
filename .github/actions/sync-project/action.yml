@@ -13,6 +13,12 @@ inputs:
   project_number:
     description: Project number
     required: true
+  report_file:
+    description: Path for the JSON sync report
+    default: sync-report.json
+outputs:
+  report_file:
+    description: Path to the JSON report with event identities and status transitions
 runs:
   using: node24
   main: index.js

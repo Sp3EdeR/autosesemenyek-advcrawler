@@ -88,7 +88,10 @@ test('required data fails before syncing; invalid optional end dates can be clea
 
 test('creates drafts with Todo, dates and ID but no Assignees', async () => {
   const { api, calls } = fixture();
-  await sync(api, 'owner', 1, [prepared]);
+  const report = await sync(api, 'owner', 1, [prepared]);
+  assert.deepEqual(report, { events: [{ event_id: prepared.id, item_id: 'created',
+      title: event.summary,
+      is_new: true, old_status: null, new_status: 'Todo' }] });
   const created = calls.find(call => call.operation === 'Create');
   assert.equal(created.input.title, event.summary);
   assert.match(created.input.body, /<!-- sync-project:event-v1-/);
@@ -106,7 +109,12 @@ test('refreshes returning Old, preserves Done, and marks only absent Todo items 
   const absentDone = eventId({ ...event, summary: 'Absent done' });
   const { api, calls } = fixture([item(prepared.id, 'Old'), item(done.id, 'Done'),
     item(absent, 'Todo'), item(absentDone, 'Done', 'absent-done')], { paginate: true });
-  await sync(api, 'owner', 1, [prepared, done]);
+  const report = await sync(api, 'owner', 1, [prepared, done]);
+  assert.ok(report.events.every(change => !change.is_new));
+  assert.deepEqual(report.events.map(change =>
+    [change.is_new, change.old_status, change.new_status]),
+  [[false, 'Old', 'Todo'], [false, 'Done', 'Done']]);
+  assert.ok(!report.events.some(change => change.event_id === absent));
   assert.equal(calls.filter(call => call.operation === 'Items').length, 2);
   assert.equal(calls.filter(call => call.operation === 'Refresh').length, 2);
   assert.equal(calls.filter(call => call.operation === 'Create').length, 0);
@@ -121,7 +129,11 @@ test('recovers a partial draft, sets Todo and clears missing optional fields', a
   draft.eventId = null;
   draft.content.body = prepared.body;
   const { api, calls } = fixture([draft]);
-  await sync(api, 'owner', 1, [{ ...prepared, dtend: 'invalid', location: '' }]);
+  const report = await sync(api, 'owner', 1,
+    [{ ...prepared, dtend: 'invalid', location: '' }]);
+  assert.equal(report.events[0].is_new, false);
+  assert.equal(report.events[0].old_status, null);
+  assert.equal(report.events[0].new_status, 'Todo');
   assert.ok(!calls.some(call => call.operation === 'Create'));
   const cleared = calls.filter(call => call.operation === 'Clear');
   assert.deepEqual(cleared.map(call => call.input.fieldId), ['End', 'Location']);

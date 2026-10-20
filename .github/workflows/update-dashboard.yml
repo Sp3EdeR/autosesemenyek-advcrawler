@@ -35,9 +35,32 @@ jobs:
           path: feed
           persist-credentials: false
       - name: Sync new events to project
+        id: sync-project
         uses: ./source/.github/actions/sync-project
         with:
           events_file: feed/new_events.json
           project_token: ${{ secrets.PROJECTS_TOKEN }}
           project_owner: ${{ github.repository_owner }}
           project_number: ${{ vars.PROJECT_NUMBER }}
+          report_file: ${{ runner.temp }}/dashboard-sync.json
+      - name: Format new event email
+        id: format-email
+        uses: ./source/.github/actions/format-dashboard-email
+        with:
+          project_owner: ${{ github.repository_owner }}
+          project_number: ${{ vars.PROJECT_NUMBER }}
+          report_file: ${{ steps.sync-project.outputs.report_file }}
+          html_file: ${{ runner.temp }}/dashboard-email.html
+      - name: Send new event email
+        if: steps.format-email.outputs.html_file != ''
+        uses: dawidd6/action-send-mail@v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: toyotaesemenyek@gmail.com
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: toyotaesemenyek@gmail.com
+          to: toyotaesemenyek@gmail.com
+          subject: Új események az Autós Események Feeden
+          html_body: file://${{ steps.format-email.outputs.html_file }}
