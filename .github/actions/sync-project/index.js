@@ -18,6 +18,13 @@ function dateOnly(value) {
   return parsed.toISOString().slice(0, 10) !== day ? null : day;
 }
 
+/** Optional invalid end dates fall back to the start, as they do in project fields. */
+function expired(start, end, cutoff) {
+  const endTime = dateOnly(end) ? Date.parse(end) : NaN;
+  const time = Number.isNaN(endTime) ? Date.parse(start) : endTime;
+  return time <= cutoff;
+}
+
 /** Hash only identity fields; adding sources or changing event times keeps the ID. */
 function eventId(event) {
   const identity = [normalize(event.summary), dateOnly(event.dtstart),
@@ -202,6 +209,15 @@ class MutationBuilder {
     );
   }
 
+  delete(itemId) {
+    this.#prepare(
+      'DeleteProjectV2ItemInput!',
+      'deleteProjectV2Item',
+      'deletedItemId',
+      { projectId: this.project, itemId }
+    );
+  }
+
   #prepare(type, field, selection, input) {
     const index = this.updates.length;
     this.updates.push({
@@ -318,15 +334,31 @@ async function sync(api, owner, number, events) {
       throw new Error(`Duplicate input event ID: ${event.id}`);
     seen.add(event.id);
   }
+  const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  events = events.filter(event => !expired(event.dtstart, event.dtend, cutoff));
+
+  // Delete expired project items.
+  let deleted = 0;
+  for (const [id, item] of existing) {
+    if (expired(item.start?.date, item.end?.date, cutoff)) {
+      mutations.delete(item.id);
+      existing.delete(id);
+      deleted++;
+    }
+  }
+
+  // Create new project items for fresh events.
   const freshEvents = events.filter(event => !existing.has(event.id));
-  console.log(`Processing ${freshEvents.length} new event(s) of ${events.length}.`);
   for (const event of freshEvents)
     mutations.create(event);
-  const created = await mutations.run();
+  // Deletions are queued first, so their results precede the creation results.
+  console.log(`Deleting ${deleted} expired & creating ${freshEvents.length} new event(s).`);
+  const created = (await mutations.run()).slice(deleted); // < MUTATION HERE
   const newItems = new Map(freshEvents.map((event, index) =>
     [event.id, created[index].projectItem]));
-  const report = { events: [] };
+
   // Process each event, creating or updating project items as necessary.
+  const report = { events: [] };
   for (const event of events) {
     // Check if the event already has a corresponding project item.
     let item = existing.get(event.id);
@@ -369,15 +401,15 @@ async function sync(api, owner, number, events) {
   }
 
   // Mark absent Todo items as Old.
-  let old = 0;
   for (const [id, item] of existing) {
-    if (!seen.has(id) && item.status?.name === 'Todo') {
+    if (!seen.has(id) && item.status?.name === 'Todo')
       mutations.setField(item.id, 'Status', { singleSelectOptionId: fields.statuses.Old });
-      old++;
-    }
   }
-  await mutations.run();
-  console.log(`Synced ${events.length} events; marked ${old} absent Todo items Old.`);
+
+  console.log(`Applying event data field mutations.`);
+  await mutations.run(); // < MUTATION HERE
+
+  console.log(`Synced ${events.length} events, deleted ${deleted} expired items.`);
   return report;
 }
 

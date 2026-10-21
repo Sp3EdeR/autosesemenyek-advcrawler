@@ -1,5 +1,9 @@
 name: Sync events to GitHub Project
-description: Sync event drafts and their statuses in the repository owner's GitHub Project.
+description: >-
+  Sync managed event drafts and their statuses in the repository owner's GitHub Project.
+  Delete drafts that ended at least 14 days ago, falling back to their start if no valid end
+  is available. Use project dates for deletion and skip expired feed entries independently.
+  Leave archived and unrelated items untouched.
 inputs:
   events_file:
     description: Path to the events JSON file
