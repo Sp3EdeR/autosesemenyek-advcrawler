@@ -153,6 +153,87 @@ function validateFields(fields) {
   return result;
 }
 
+/** Queue mutations across creation and update phases without replaying completed batches. */
+class MutationBuilder {
+  static #batchSize = 20;
+
+  constructor(api, project, fields) {
+    this.api = api;
+    this.project = project;
+    this.fields = fields;
+    this.updates = [];
+  }
+
+  setField(item, name, value) {
+    const input = { projectId: this.project, itemId: item, fieldId: this.fields[name].id };
+    if (value === null) {
+      this.#prepare(
+        'ClearProjectV2ItemFieldValueInput!',
+        'clearProjectV2ItemFieldValue',
+        'projectV2Item { id }',
+        input
+      );
+    } else {
+      input.value = value;
+      this.#prepare(
+        'UpdateProjectV2ItemFieldValueInput!',
+        'updateProjectV2ItemFieldValue',
+        'projectV2Item { id }',
+        input
+      );
+    }
+  }
+
+  create(event) {
+    this.#prepare(
+      'AddProjectV2DraftIssueInput!',
+      'addProjectV2DraftIssue',
+      'projectItem { id }',
+      { projectId: this.project, title: event.summary, body: event.body }
+    );
+  }
+
+  refresh(draftIssueId, event) {
+    this.#prepare(
+      'UpdateProjectV2DraftIssueInput!',
+      'updateProjectV2DraftIssue',
+      'draftIssue { id }',
+      { draftIssueId, title: event.summary, body: event.body }
+    );
+  }
+
+  #prepare(type, field, selection, input) {
+    const index = this.updates.length;
+    this.updates.push({
+      alias: `m${index}`,
+      variable: `input${index}`,
+      declaration: `$input${index}: ${type}`,
+      selection: `m${index}: ${field}(input: $input${index}) { ${selection} }`,
+      input,
+    });
+  }
+
+  async run() {
+    const results = [];
+    const batchSize = MutationBuilder.#batchSize;
+    console.log(`Running ${this.updates.length} mutation(s), batch size ${batchSize}.`);
+    while (this.updates.length) {
+      const batch = this.updates.slice(0, batchSize);
+      const variables = Object.fromEntries(batch.map(update => [update.variable, update.input]));
+      const declarations = batch.map(update => update.declaration).join(', ');
+      console.log(`Applying ${batch.length} mutation(s).`);
+      const data = await this.api(`mutation Batch(${declarations}) {
+        ${batch.map(update => update.selection).join('\n')}
+      }`, variables);
+      const batchResults = batch.map(update => data[update.alias]);
+      results.push(...batchResults);
+      console.log(`${batchResults.filter(Boolean).length} mutations finished successfully.`);
+      this.updates.splice(0, batch.length);
+    }
+    return results;
+  }
+}
+
 /** Sync managed drafts only; never mutate Assignees or unrelated project items. */
 async function sync(api, owner, number, events) {
   // Fetch the project ID for the given owner and project number.
@@ -168,6 +249,7 @@ async function sync(api, owner, number, events) {
   const project = data.repositoryOwner?.projectV2?.id;
   if (!project)
     throw new Error(`Project ${owner}/${number} not found or not accessible.`);
+  console.log(`Found project ${owner}/${number}.`);
   // Fetch and validate the project fields.
   const fields = validateFields(await pages(
     api,
@@ -185,8 +267,8 @@ async function sync(api, owner, number, events) {
     { project },
     value => value.node.fields
   ));
+  console.log(`Verified the project's fields.`);
   // Fetch the existing project items.
-  // TODO: Add server-side filtering for relevant IDs to reduce data transfer.
   const items = await pages(
     api,
     `query Items($project: ID!, $cursor: String) {
@@ -194,8 +276,13 @@ async function sync(api, owner, number, events) {
         items(first: 100, after: $cursor) {
           nodes {
             id isArchived
-            content { __typename ... on DraftIssue { id body } }
+            content { __typename ... on DraftIssue { id title body } }
             eventId: fieldValueByName(name: "ID") { ... on ProjectV2ItemFieldTextValue { text } }
+            start: fieldValueByName(name: "Start") { ... on ProjectV2ItemFieldDateValue { date } }
+            end: fieldValueByName(name: "End") { ... on ProjectV2ItemFieldDateValue { date } }
+            location: fieldValueByName(name: "Location") {
+              ... on ProjectV2ItemFieldTextValue { text }
+            }
             status: fieldValueByName(name: "Status") {
               ... on ProjectV2ItemFieldSingleSelectValue { name }
             }
@@ -207,6 +294,7 @@ async function sync(api, owner, number, events) {
     { project },
     value => value.node.items
   );
+  console.log(`Fetched ${items.length} project item(s).`);
   // Map existing project items by their managed ID for quick lookup.
   const existing = new Map();
   for (const item of items) {
@@ -221,23 +309,7 @@ async function sync(api, owner, number, events) {
     existing.set(id, item);
   }
 
-  // Helper function to update a field value for an existing project item.
-  async function setField(item, name, value) {
-    if (value === null)
-      await api(
-        `mutation Clear($input: ClearProjectV2ItemFieldValueInput!) {
-          clearProjectV2ItemFieldValue(input: $input) { projectV2Item { id } }
-        }`,
-        { input: { projectId: project, itemId: item, fieldId: fields[name].id } }
-      );
-    else
-      await api(
-        `mutation Set($input: UpdateProjectV2ItemFieldValueInput!) {
-          updateProjectV2ItemFieldValue(input: $input) { projectV2Item { id } }
-        }`,
-        { input: { projectId: project, itemId: item, fieldId: fields[name].id, value } }
-      );
-  }
+  const mutations = new MutationBuilder(api, project, fields);
 
   // Unique events
   const seen = new Set();
@@ -246,6 +318,13 @@ async function sync(api, owner, number, events) {
       throw new Error(`Duplicate input event ID: ${event.id}`);
     seen.add(event.id);
   }
+  const freshEvents = events.filter(event => !existing.has(event.id));
+  console.log(`Processing ${freshEvents.length} new event(s) of ${events.length}.`);
+  for (const event of freshEvents)
+    mutations.create(event);
+  const created = await mutations.run();
+  const newItems = new Map(freshEvents.map((event, index) =>
+    [event.id, created[index].projectItem]));
   const report = { events: [] };
   // Process each event, creating or updating project items as necessary.
   for (const event of events) {
@@ -254,29 +333,24 @@ async function sync(api, owner, number, events) {
     const fresh = !item;
     const unfinished = item && !item.eventId?.text && !item.status?.name;
     if (fresh) {
-      const created = await api(
-        `mutation Create($input: AddProjectV2DraftIssueInput!) {
-          addProjectV2DraftIssue(input: $input) { projectItem { id } }
-        }`,
-        { input: { projectId: project, title: event.summary, body: event.body } }
-      );
-      item = created.addProjectV2DraftIssue.projectItem;
-    } else {
-      await api(
-        `mutation Refresh($input: UpdateProjectV2DraftIssueInput!) {
-          updateProjectV2DraftIssue(input: $input) { draftIssue { id } }
-        }`,
-        { input: { draftIssueId: item.content.id, title: event.summary, body: event.body } }
-      );
+      item = newItems.get(event.id);
+    } else if (item.content.title !== event.summary || item.content.body !== event.body) {
+      mutations.refresh(item.content.id, event);
     }
-    // Write identity first; the body marker recovers drafts if this first write fails.
+    // Body markers recover drafts if creation succeeds but a later batch fails.
     if (fresh || unfinished || item.status?.name === 'Old')
-      await setField(item.id, 'Status', { singleSelectOptionId: fields.statuses.Todo });
-    await setField(item.id, 'ID', { text: event.id });
-    await setField(item.id, 'Start', { date: dateOnly(event.dtstart) });
+      mutations.setField(item.id, 'Status', { singleSelectOptionId: fields.statuses.Todo });
+    if (item.eventId?.text !== event.id)
+      mutations.setField(item.id, 'ID', { text: event.id });
+    const start = dateOnly(event.dtstart);
+    if ((item.start?.date || null) !== start)
+      mutations.setField(item.id, 'Start', { date: start });
     const end = dateOnly(event.dtend);
-    await setField(item.id, 'End', end ? { date: end } : null);
-    await setField(item.id, 'Location', event.location ? { text: event.location } : null);
+    if ((item.end?.date || null) !== end)
+      mutations.setField(item.id, 'End', end ? { date: end } : null);
+    const location = event.location || null;
+    if ((item.location?.text || null) !== location)
+      mutations.setField(item.id, 'Location', location ? { text: location } : null);
 
     // Create a report file
     const oldStatus = item?.status?.name ?? null;
@@ -298,10 +372,11 @@ async function sync(api, owner, number, events) {
   let old = 0;
   for (const [id, item] of existing) {
     if (!seen.has(id) && item.status?.name === 'Todo') {
-      await setField(item.id, 'Status', { singleSelectOptionId: fields.statuses.Old });
+      mutations.setField(item.id, 'Status', { singleSelectOptionId: fields.statuses.Old });
       old++;
     }
   }
+  await mutations.run();
   console.log(`Synced ${events.length} events; marked ${old} absent Todo items Old.`);
   return report;
 }
@@ -326,7 +401,7 @@ async function main() {
 }
 
 module.exports = { normalize, dateOnly, eventId, markdown, description, loadEvents,
-  createClient, validateFields, sync };
+  createClient, validateFields, MutationBuilder, sync };
 if (require.main === module) main().catch(error => {
   console.error(error);
   process.exitCode = 1;

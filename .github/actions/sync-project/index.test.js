@@ -10,6 +10,7 @@ const prepared = loadEvents([{ source: event }])[0];
 /** Mock the project API at its operation boundary and retain every mutation. */
 function fixture(items = [], options = {}) {
   const calls = [];
+  const requests = [];
   const fields = ['Start', 'End', 'Location', 'ID', 'Status'].map(name => ({
     id: name, name, dataType: ['Start', 'End'].includes(name) ? 'DATE'
       : name === 'Status' ? 'SINGLE_SELECT' : 'TEXT',
@@ -17,6 +18,20 @@ function fixture(items = [], options = {}) {
   }));
   const api = async (query, variables) => {
     const operation = query.match(/(?:query|mutation) (\w+)/)[1];
+    requests.push({ query, variables });
+    if (operation === 'Batch') {
+      const operations = { addProjectV2DraftIssue: 'Create', updateProjectV2DraftIssue: 'Refresh',
+        updateProjectV2ItemFieldValue: 'Set', clearProjectV2ItemFieldValue: 'Clear' };
+      const result = {};
+      for (const match of query.matchAll(/(m\d+): (\w+)\(input: \$(input\d+)\)/g)) {
+        const [, alias, field, variable] = match;
+        calls.push({ operation: operations[field], input: variables[variable] });
+        const id = options.uniqueIds ? `created-${calls.length}` : 'created';
+        result[alias] = field === 'addProjectV2DraftIssue'
+          ? { projectItem: { id } } : {};
+      }
+      return result;
+    }
     calls.push({ operation, ...variables });
     const connection = nodes => ({ nodes, pageInfo: { hasNextPage: false, endCursor: null } });
     if (operation === 'Project') return { repositoryOwner: { projectV2: { id: 'project' } } };
@@ -36,7 +51,7 @@ function fixture(items = [], options = {}) {
     }
     return {};
   };
-  return { api, calls };
+  return { api, calls, requests };
 }
 
 function item(id, status, suffix = status) {
@@ -128,6 +143,8 @@ test('recovers a partial draft, sets Todo and clears missing optional fields', a
   const draft = item(prepared.id, null, 'unfinished');
   draft.eventId = null;
   draft.content.body = prepared.body;
+  draft.end = { date: '2026-10-20' };
+  draft.location = { text: 'Budapest' };
   const { api, calls } = fixture([draft]);
   const report = await sync(api, 'owner', 1,
     [{ ...prepared, dtend: 'invalid', location: '' }]);
@@ -161,4 +178,69 @@ test('GraphQL transport reports HTTP and GraphQL errors', async context => {
   await assert.rejects(client('query {}', {}), /HTTP 403/);
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ errors: ['denied'] }) });
   await assert.rejects(client('query {}', {}), /denied/);
+});
+
+test('19 new events need nine requests, with at most 20 mutations per request', async () => {
+  const events = loadEvents(Array.from({ length: 19 }, (_, index) =>
+    ({ source: { ...event, summary: `Meet ${index}` } })));
+  const { api, requests } = fixture([], { uniqueIds: true });
+  const report = await sync(api, 'owner', 1, events);
+  assert.equal(report.events.length, 19);
+  assert.equal(new Set(report.events.map(change => change.item_id)).size, 19);
+  assert.equal(requests.length, 9);
+  for (const request of requests.filter(request => request.query.includes('mutation Batch'))) {
+    assert.ok(Object.keys(request.variables).length <= 20);
+    for (const key of Object.keys(request.variables))
+      assert.ok(request.query.includes(`$${key}:`));
+  }
+});
+
+test('an unchanged feed needs only three reads and retains its report', async () => {
+  const current = item(prepared.id, 'Done');
+  current.content = { ...current.content, title: prepared.summary, body: prepared.body };
+  current.start = { date: dateOnly(event.dtstart) };
+  current.end = { date: dateOnly(event.dtend) };
+  current.location = { text: event.location };
+  const { api, calls, requests } = fixture([current]);
+  const report = await sync(api, 'owner', 1, [prepared]);
+  assert.equal(requests.length, 3);
+  assert.ok(!calls.some(call => call.input));
+  assert.equal(report.events[0].new_status, 'Done');
+});
+
+test('a changed end date writes only that field', async () => {
+  const current = item(prepared.id, 'Done');
+  current.content = { ...current.content, title: prepared.summary, body: prepared.body };
+  current.start = { date: dateOnly(event.dtstart) };
+  current.end = { date: '2026-10-21' };
+  current.location = { text: event.location };
+  const { api, calls, requests } = fixture([current]);
+  await sync(api, 'owner', 1, [prepared]);
+  const writes = calls.filter(call => call.input);
+  assert.equal(requests.length, 4);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].input.fieldId, 'End');
+  assert.deepEqual(writes[0].input.value, { date: '2026-10-20' });
+});
+
+test('creation batches retain the correct item IDs across batch boundaries', async () => {
+  const events = loadEvents(Array.from({ length: 21 }, (_, index) =>
+    ({ source: { ...event, summary: `Meet ${index}` } })));
+  const { api, calls } = fixture([], { uniqueIds: true });
+  const report = await sync(api, 'owner', 1, events);
+  const ids = calls.filter(call => call.operation === 'Set' && call.input.fieldId === 'ID');
+  assert.equal(new Set(report.events.map(change => change.item_id)).size, 21);
+  assert.deepEqual(ids.map(call => [call.input.itemId, call.input.value.text]),
+    report.events.map(change => [change.item_id, change.event_id]));
+});
+
+test('a failed batch stops the sync instead of reporting partial success', async () => {
+  const { api } = fixture();
+  let writes = 0;
+  const failing = (query, variables) => {
+    if (query.includes('mutation Batch') && ++writes === 2)
+      throw new Error('partial GraphQL failure');
+    return api(query, variables);
+  };
+  await assert.rejects(sync(failing, 'owner', 1, [prepared]), /partial GraphQL failure/);
 });
