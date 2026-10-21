@@ -9,10 +9,11 @@ const { render } = require('./index');
 
 const template = readFileSync(join(__dirname, 'template.html'), 'utf8');
 const report = { events: [
-    { is_new: true, title: 'Aut\u00f3s tal\u00e1lkoz\u00f3 <script> & "friends"' },
-    { is_new: true, title: "Rally '26 {{new_count}}" },
-    { is_new: false, title: 'Returning Old event' },
-    { is_new: false, title: 'Absent event' },
+    { is_new: true, summary: 'Aut\u00f3s tal\u00e1lkoz\u00f3 <script> & "friends"',
+      start: '2026-05-02 10:00' },
+    { is_new: true, summary: "Rally '26 {{new_count}}", start: '2026-05-01' },
+    { is_new: false, summary: 'Returning Old event', start: '2026-04-01' },
+    { is_new: false, summary: 'Absent event', start: '2026-04-02' },
   ] };
 
 test('renders Hungarian email with user dashboard link and only new event titles', () => {
@@ -26,6 +27,7 @@ test('renders Hungarian email with user dashboard link and only new event titles
   assert.ok(!html.includes('Returning Old event'));
   assert.ok(!html.includes('Absent event'));
   assert.ok(!html.includes('<script>'));
+  assert.ok(html.indexOf('2026-05-01 - Rally') < html.indexOf('2026-05-02 - Aut'));
 });
 
 test('encodes project inputs instead of allowing URL path or attribute injection', () => {
@@ -47,7 +49,7 @@ test(`action entry point ${hasNewEvents ? 'writes HTML' : 'skips HTML without ne
     const reportFile = join(directory, 'report.json');
     const htmlFile = join(directory, 'email.html');
     const outputFile = join(directory, 'outputs');
-    const input = hasNewEvents ? report : { events: [{ is_new: false, title: 'Existing' }] };
+    const input = hasNewEvents ? report : { events: [{ is_new: false, summary: 'Existing', start: '2026-05-01' }] };
     await writeFile(reportFile, JSON.stringify(input), 'utf8');
     execFileSync(process.execPath, [join(__dirname, 'index.js')], { env: { ...process.env,
       INPUT_REPORT_FILE: reportFile, INPUT_HTML_FILE: htmlFile, INPUT_PROJECT_OWNER: 'owner',

@@ -284,7 +284,10 @@ async function sync(api, owner, number, events) {
     report.events.push({
       event_id: event.id,
       item_id: item.id,
-      title: event.summary,
+      summary: event.summary,
+      start: event.dtstart,
+      end: dateOnly(event.dtend),
+      location: event.location || null,
       is_new: fresh,
       old_status: oldStatus,
       new_status: newStatus

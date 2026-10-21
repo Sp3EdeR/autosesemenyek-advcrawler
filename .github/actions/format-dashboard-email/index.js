@@ -6,17 +6,24 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, character => entities[character]);
 }
 
+// Sort by local wall-clock time; date-only values sort before timed ones.
+function sortKey(start) {
+  return start.replace(' ', 'T');
+}
+
 function render(report, template, owner, number) {
-  const events = report.events.filter(event => event.is_new === true);
+  const events = report.events.filter(event => event.is_new === true)
+    .sort((a, b) => sortKey(a.start).localeCompare(sortKey(b.start)));
   if (!events.length)
     return null;
   const url = `https://github.com/users/${encodeURIComponent(owner)}/projects/${encodeURIComponent(number)}`;
   const values = {
     project_url: escapeHtml(url),
     new_count: events.length,
-    event_titles: events.map(event =>
-        `<li style="margin:0 0 14px;overflow-wrap:anywhere;">${escapeHtml(event.title)}</li>`
-      ).join('\n')
+    event_titles: events.map(event => {
+      const label = escapeHtml(`${event.start.slice(0, 10)} - ${event.summary}`);
+      return `<li style="margin:0 0 14px;overflow-wrap:anywhere;">${label}</li>`;
+    }).join('\n')
   };
   return template.replace(
     /\{\{(project_url|new_count|event_titles)\}\}/g,
