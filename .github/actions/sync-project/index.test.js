@@ -90,7 +90,7 @@ test('creates drafts with Todo, dates and ID but no Assignees', async () => {
   const { api, calls } = fixture();
   const report = await sync(api, 'owner', 1, [prepared]);
   assert.deepEqual(report, { events: [{ event_id: prepared.id, item_id: 'created',
-      title: event.summary,
+      summary: event.summary, start: event.dtstart, end: '2026-10-20', location: 'Budapest',
       is_new: true, old_status: null, new_status: 'Todo' }] });
   const created = calls.find(call => call.operation === 'Create');
   assert.equal(created.input.title, event.summary);
