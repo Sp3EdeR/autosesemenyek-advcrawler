@@ -1,6 +1,9 @@
-const { test } = require('node:test');
+const { test, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { dateOnly, eventId, markdown, loadEvents, createClient, sync } = require('./index');
+
+const now = Date.parse('2026-10-21T12:00:00Z');
+beforeEach(context => context.mock.method(Date, 'now', () => now));
 
 const event = { summary: 'Car Meet', dtstart: '2026-10-19T00:30:00+02:00',
   dtend: '2026-10-20T18:00:00+02:00', location: 'Budapest',
@@ -21,7 +24,8 @@ function fixture(items = [], options = {}) {
     requests.push({ query, variables });
     if (operation === 'Batch') {
       const operations = { addProjectV2DraftIssue: 'Create', updateProjectV2DraftIssue: 'Refresh',
-        updateProjectV2ItemFieldValue: 'Set', clearProjectV2ItemFieldValue: 'Clear' };
+        updateProjectV2ItemFieldValue: 'Set', clearProjectV2ItemFieldValue: 'Clear',
+        deleteProjectV2Item: 'Delete' };
       const result = {};
       for (const match of query.matchAll(/(m\d+): (\w+)\(input: \$(input\d+)\)/g)) {
         const [, alias, field, variable] = match;
@@ -243,4 +247,120 @@ test('a failed batch stops the sync instead of reporting partial success', async
     return api(query, variables);
   };
   await assert.rejects(sync(failing, 'owner', 1, [prepared]), /partial GraphQL failure/);
+});
+
+test('deletes expired managed drafts of every status, preferring End over Start', async () => {
+  const cases = [
+    ['old-todo', 'Todo', '2026-09-01', '2026-10-06'],
+    ['old-done', 'Done', '2026-09-01', '2026-10-07'],
+    ['old-old', 'Old', '2026-10-07', null],
+    ['recent-end', 'Done', '2026-09-01', '2026-10-08'],
+    ['recent-start', 'Done', '2026-10-08', null],
+    ['missing-dates', 'Done', null, null],
+    ['invalid-end', 'Done', '2026-10-07', 'invalid'],
+  ];
+  const items = cases.map(([summary, status, start, end]) => ({
+    ...item(eventId({ ...event, summary }), status, summary),
+    start: start ? { date: start } : null,
+    end: end ? { date: end } : null,
+  }));
+  const { api, calls, requests } = fixture(items, { paginate: true });
+  assert.deepEqual(await sync(api, 'owner', 1, []), { events: [] });
+  assert.deepEqual(calls.filter(call => call.operation === 'Delete').map(call => call.input),
+    ['old-todo', 'old-done', 'old-old', 'invalid-end'].map(itemId =>
+      ({ projectId: 'project', itemId })));
+  assert.ok(!calls.some(call => ['Set', 'Refresh', 'Create'].includes(call.operation)));
+  const deletion = requests.find(request => request.query.includes('deleteProjectV2Item'));
+  assert.match(deletion.query, /DeleteProjectV2ItemInput!/);
+  assert.match(deletion.query, /deletedItemId/);
+});
+
+test('expired feed entries are deleted without being recreated, refreshed or reported', async () => {
+  const events = loadEvents([
+    { boundary: { ...event, summary: 'Exactly two weeks',
+      dtend: '2026-10-07T14:00:00+02:00' } },
+    { older: { ...event, summary: 'Older', dtend: '2026-10-07T11:59:59Z' } },
+    { missing: { ...event, summary: 'No end', dtstart: '2026-10-07T12:00:00Z', dtend: null } },
+    { invalid: { ...event, summary: 'Invalid end',
+      dtstart: '2026-10-07T12:00:00Z', dtend: 'invalid' } },
+    { recent: { ...event, summary: 'Just under two weeks',
+      dtend: '2026-10-07T14:00:01+02:00' } },
+    { ongoing: { ...event, summary: 'Ongoing', dtstart: '2026-09-01',
+      dtend: '2026-10-22' } },
+  ]);
+  const { api, calls } = fixture(events.slice(0, 4).map(value => ({
+    ...item(value.id, 'Todo', value.summary),
+    start: { date: dateOnly(value.dtstart) },
+    end: { date: dateOnly(value.dtend) },
+  })), { uniqueIds: true });
+  const report = await sync(api, 'owner', 1, events);
+  assert.equal(calls.filter(call => call.operation === 'Delete').length, 4);
+  assert.equal(calls.filter(call => call.operation === 'Create').length, 2);
+  assert.ok(!calls.some(call => call.operation === 'Refresh'));
+  assert.deepEqual(report.events.map(value => value.event_id), events.slice(4).map(value => value.id));
+});
+
+test('expired board items are deleted and recreated from future feed events in one batch',
+  async () => {
+  const current = item(prepared.id, 'Done');
+  current.start = { date: '2026-10-19' };
+  current.end = { date: '2026-10-01' };
+  const { api, calls, requests } = fixture([current]);
+  const report = await sync(api, 'owner', 1, [prepared]);
+  assert.deepEqual(calls.filter(call => call.input).slice(0, 2).map(call => call.operation),
+    ['Delete', 'Create']);
+  assert.ok(!calls.some(call => call.operation === 'Refresh'));
+  const batch = requests.find(request => request.query.includes('mutation Batch'));
+  assert.match(batch.query, /deleteProjectV2Item/);
+  assert.match(batch.query, /addProjectV2DraftIssue/);
+  assert.equal(report.events[0].item_id, 'created');
+  assert.equal(report.events[0].is_new, true);
+});
+
+test('mixed deletion and creation batches retain new item IDs across batch boundaries', async () => {
+  const stale = Array.from({ length: 21 }, (_, index) => ({
+    ...item(eventId({ ...event, summary: `Stale ${index}` }), 'Done', `stale-${index}`),
+    end: { date: '2026-09-01' },
+  }));
+  const events = loadEvents(Array.from({ length: 21 }, (_, index) =>
+    ({ source: { ...event, summary: `Future ${index}` } })));
+  const { api, calls, requests } = fixture(stale, { uniqueIds: true });
+  const report = await sync(api, 'owner', 1, events);
+  assert.equal(calls.filter(call => call.operation === 'Delete').length, 21);
+  const creations = calls.filter(call => call.operation === 'Create');
+  assert.equal(creations.length, 21);
+  assert.deepEqual(report.events.map(change => change.item_id),
+    creations.map(call => `created-${calls.indexOf(call) + 1}`));
+  const ids = calls.filter(call => call.operation === 'Set' && call.input.fieldId === 'ID');
+  assert.deepEqual(ids.map(call => [call.input.itemId, call.input.value.text]),
+    report.events.map(change => [change.item_id, change.event_id]));
+  const batches = requests.filter(request => request.query.includes('mutation Batch'));
+  assert.match(batches[1].query, /deleteProjectV2Item/);
+  assert.match(batches[1].query, /addProjectV2DraftIssue/);
+  assert.ok(batches.every(request => Object.keys(request.variables).length <= 20));
+});
+
+test('cleanup leaves archived drafts and unrelated items untouched', async () => {
+  const archived = { ...item(prepared.id, 'Done', 'archived'), isArchived: true };
+  const unrelated = item('manual-id', 'Todo');
+  const issue = item(prepared.id, 'Todo', 'issue');
+  issue.content.__typename = 'Issue';
+  for (const value of [archived, unrelated, issue])
+    value.end = { date: '2026-09-01' };
+  const { api, calls } = fixture([archived, unrelated, issue]);
+  await sync(api, 'owner', 1, []);
+  assert.ok(!calls.some(call => call.input));
+});
+
+test('cleanup failure stops sync before creating or reporting events', async () => {
+  const stale = item(eventId({ ...event, summary: 'Stale' }), 'Done');
+  stale.end = { date: '2026-09-01' };
+  const { api, calls } = fixture([stale]);
+  const failing = (query, variables) => {
+    if (query.includes('deleteProjectV2Item'))
+      throw new Error('cleanup failed');
+    return api(query, variables);
+  };
+  await assert.rejects(sync(failing, 'owner', 1, [prepared]), /cleanup failed/);
+  assert.ok(!calls.some(call => call.input));
 });
