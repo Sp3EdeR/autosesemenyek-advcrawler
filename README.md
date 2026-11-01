@@ -54,12 +54,6 @@ set DISTUTILS_USE_SDK=1
 poetry install -E dedupe
 ```
 
-Run deduplication training using sample events from `dedupe/training_events.json`:
-
-```bash
-poetry run event-clusterizer train
-```
-
 Run deduplication:
 
 ```bash
@@ -67,6 +61,21 @@ poetry run event-clusterizer process -o <output.json> <input.json>...
 ```
 
 By default, the output is generated at `$CWD/deduped.json`.
+
+### Filtering out events already in autosesemenyek
+
+`dedup-filter` removes events that already come from the autosesemenyek list, leaving only new
+events. It keeps an event only if none of its source keys contain `autosesemenyek`.
+
+Run deduplication into a file, then filter it:
+
+```bash
+poetry run event-clusterizer process -o crawled/deduplicated_events.json <input.json>...
+poetry run dedup-filter crawled/deduplicated_events.json crawled/new_events.json
+```
+
+The filter reads the first file and writes the remaining events to the second file. It prints the
+input and output event counts.
 
 ## Developing and debugging
 
@@ -108,6 +117,15 @@ under the `crawled` subdirectory.
     }
   ]
 }
+```
+
+### Training the deduper
+
+For the training process, manual pairing, and retraining options, see
+[dedupe/README.md](dedupe/README.md). To start an interactive training session:
+
+```bash
+poetry run event-clusterizer train
 ```
 
 ## Project outputs
