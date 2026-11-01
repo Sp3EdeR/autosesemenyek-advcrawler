@@ -9,6 +9,7 @@ from .common import (
     load_event_lists,
     merge_partitioned_records,
     preprocess_events,
+    probability,
     save_event_list,
 )
 
@@ -17,6 +18,8 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
     """Define arguments for the process sub-command."""
     parser.add_argument("input_files", nargs="+", type=str, help="one or more input event JSON files")
     parser.add_argument("-o", "--output", default=Path("deduped.json"), type=Path, help="output JSON file path")
+    parser.add_argument("--settings", type=Path, default=SETTINGS_PATH)
+    parser.add_argument("--threshold", type=probability, default=0.5, help="cluster threshold; higher favors precision, lower favors recall")
     parser.set_defaults(handler=run)
 
 
@@ -25,10 +28,10 @@ def run(args: argparse.Namespace) -> int:
     dedupe_module, _variables_module = load_dedupe_modules()
     records = preprocess_events(load_event_lists(args.input_files))
 
-    with SETTINGS_PATH.open("rb") as file:
+    with args.settings.open("rb") as file:
         deduper = dedupe_module.StaticDedupe(file, num_cores=0, in_memory=True)
 
-    merged_events = merge_partitioned_records(records, deduper.partition(records))
+    merged_events = merge_partitioned_records(records, deduper.partition(records, args.threshold))
     save_event_list(args.output, merged_events)
 
     print(f"Processed {len(records)} records into {len(merged_events)} output events.")

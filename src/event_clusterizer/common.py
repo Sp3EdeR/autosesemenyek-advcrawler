@@ -3,10 +3,13 @@ from __future__ import annotations
 import importlib
 import json
 import re
-from urllib import request
 from collections.abc import Iterable, Sequence
+from datetime import datetime, timedelta
+from html import unescape
 from pathlib import Path
 from typing import Any
+from urllib import request
+from zoneinfo import ZoneInfo
 
 from utilities import get_first_town_norm, normalize_text_for_match
 
@@ -15,8 +18,6 @@ WrappedEvent = dict[str, dict[str, Any]]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEDUPE_DIR = PROJECT_ROOT / "dedupe"
-TRAINING_EVENTS_PATH = DEDUPE_DIR / "training_events.json"
-TRAINING_DATA_PATH = DEDUPE_DIR / "training_data.json"
 SETTINGS_PATH = DEDUPE_DIR / "settings.dedupe"
 SUMMARY_NORM_MAX_LEN = 256
 DESCRIPTION_NORM_MAX_LEN = 512
@@ -28,6 +29,9 @@ MERGE_JOINERS = {
 }
 
 HTML_TAG_RE = re.compile(r"</?[a-zA-Z]+[^>]*>")
+NON_ALPHANUMERIC_RE = re.compile(r"[\W_]+")
+
+DATE_TIMEZONE = ZoneInfo("Europe/Budapest")
 
 
 def load_dedupe_modules() -> tuple[Any, Any]:
@@ -44,26 +48,12 @@ def load_dedupe_modules() -> tuple[Any, Any]:
     return dedupe_module, variables_module
 
 
-def build_dedupe_fields(variables_module: Any) -> list[Any]:
-    """Return the field configuration used for event deduplication."""
-    import datetimetype
-
-    return [
-        variables_module.Text("summary_norm"),
-        datetimetype.DateTime("dtstart_norm"),
-        datetimetype.DateTime("dtend_norm", has_missing=True),
-        variables_module.Text("description_norm", has_missing=True),
-        variables_module.String("location_norm", has_missing=True),
-        variables_module.ShortString("town_norm", has_missing=True),
-    ]
-
-
 def load_event_list(path: str) -> list[WrappedEvent]:
     """Load a wrapped event list from JSON."""
     if re.match(r"^https?://", path):
         with request.urlopen(path) as response:
             return json.load(response)
-    with open(path, "r", encoding="utf-8") as file:
+    with open(path, encoding="utf-8") as file:
         return json.load(file)
 
 
@@ -95,8 +85,8 @@ def preprocess_events(events: Iterable[WrappedEvent]) -> dict[int, Record]:
                 processed["summary"], SUMMARY_NORM_MAX_LEN
             )
             # Only use the date portion for deduplication, time is inconsistent.
-            processed["dtstart_norm"] = processed["dtstart"][:10]
-            processed["dtend_norm"] = processed["dtend"][:10] if "dtend" in processed else None
+            processed["dtstart_norm"] = _normalized_date(processed["dtstart"])
+            processed["dtend_norm"] = _normalized_date(processed.get("dtend"), is_end_date=True)
             desc = processed.get("description")
             processed["description_norm"] = _normalized_dedupe_text(
                 desc, DESCRIPTION_NORM_MAX_LEN
@@ -105,6 +95,8 @@ def preprocess_events(events: Iterable[WrappedEvent]) -> dict[int, Record]:
             processed["location_norm"] = _normalized_dedupe_text(loc, LOCATION_NORM_MAX_LEN)
             town_sources = " ".join(filter(None, [loc, processed["summary"], desc]))
             processed["town_norm"] = get_first_town_norm(town_sources)
+            # autosnaptar produces towns from reverse geocoding, which is sometimes incorrect
+            processed["town_quality"] = "geocoded" if src == "autosnaptar_event" else "text"
             processed_records[index] = processed
 
     return processed_records
@@ -132,7 +124,7 @@ def _make_link(url: str) -> str:
 def _merge_cluster_records(records: Sequence[Record]) -> WrappedEvent:
     merged: dict[str, Any] = {}
     for field in {field for rec in records for field in rec}:
-        if field == "src" or field.endswith("_norm"):
+        if field in {"src", "town_quality"} or field.endswith("_norm"):
             continue
 
         values = list({rec[field] for rec in records if field in rec and rec[field] is not None})
@@ -164,16 +156,44 @@ def _merge_cluster_records(records: Sequence[Record]) -> WrappedEvent:
     return { src_key: merged }
 
 
+def _normalized_date(value: str | None, *, is_end_date: bool = False) -> str | None:
+    """Use Budapest dates and exclusive midnight ends; naive times are local, dates unchanged."""
+    if not value:
+        return None
+    if len(value) == 10:
+        return value
+    timestamp = datetime.fromisoformat(value)
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.astimezone(DATE_TIMEZONE)
+    if is_end_date and not any((
+        timestamp.hour, timestamp.minute, timestamp.second, timestamp.microsecond,
+    )):
+        timestamp -= timedelta(days=1)
+    return timestamp.date().isoformat()
+
+
 def _normalized_dedupe_text(value: str | None, max_length: int) -> str | None:
+    """Normalize text for deduplication, removing HTML tags and non-alphanumeric characters."""
     if not value:
         return None
 
-    normalized = HTML_TAG_RE.sub("", value)
-
-    normalized = normalize_text_for_match(normalized)
+    normalized = normalize_text_for_match(HTML_TAG_RE.sub(" ", unescape(value)))
+    normalized = NON_ALPHANUMERIC_RE.sub(" ", normalized).strip()
+    if not normalized:
+        return None
     if len(normalized) <= max_length:
         return normalized
 
     trimmed = normalized[:max_length].rstrip()
     head, _sep, _tail = trimmed.rpartition(" ")
     return head or trimmed
+
+
+def probability(value: str) -> float:
+    """Argparse helper to read a probability value between 0 and 1."""
+    import argparse
+
+    parsed = float(value)
+    if not 0 <= parsed <= 1:
+        raise argparse.ArgumentTypeError("expected a number between 0 and 1")
+    return parsed

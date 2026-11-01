@@ -13,10 +13,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    train_parser = subparsers.add_parser(
-        "train",
-        help="train the dedupe model from dedupe/training_events.json",
-    )
+    train_parser = subparsers.add_parser("train", help="train the model from event lists")
     train_command.configure_parser(train_parser)
 
     process_parser = subparsers.add_parser(
