@@ -1,12 +1,6 @@
 name: Crawl Autosesemenyek Calendars
 
 on:
-  schedule:
-    # 3rd job, attempts to succeed GAS HTML script (5-6CET) and precede event feed
-    # The Run crawler step reuses the GAS script results
-    # NOTE: GitHub actions delay is usually 2-3.5h
-    - cron: "35 4 * * *" # 4:35 daily
-      timezone: "Europe/Budapest"
   workflow_dispatch:     # Manual execution
 
 permissions:
@@ -51,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
       - name: Run crawler
-        run: poetry run python -u -m event_crawler.main --crawler-filter 'autosesemenyek' --output autosesemenyek/events.json
+        run: poetry run python -u -m event_crawler.main --crawler-filter '^autosesemenyek_deprecated$' --output autosesemenyek/events.json
       - name: Create markdown feed
         run: poetry run python -m feed_formatter.main autosesemenyek/events.json autosesemenyek/README.md
       - name: Push crawler output to autosesemenyek branch
