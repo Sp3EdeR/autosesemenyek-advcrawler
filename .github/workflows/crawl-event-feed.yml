@@ -2,10 +2,10 @@ name: Crawl Event Feed
 
 on:
   schedule:
-    # Last job in sequence, attempts to succeed autosesemenyek crawler
-    # The `Run Event Deduplication` step reuses the autosesemenyek crawler result
+    # Last job in sequence, attempts to succeed GAS HTML script (5-6CET)
+    # The "Download current Autosesemenyek events" step reuses the GAS script results
     # NOTE: GitHub actions delay is usually 2-3.5h
-    - cron: "55 8 * * 1,3,5" # 8:55 every Monday, Wednesday, and Friday
+    - cron: "35 4 * * *" # 4:35 daily
       timezone: "Europe/Budapest"
   workflow_dispatch:     # Manual execution
 
@@ -63,15 +63,24 @@ jobs:
       - name: Fetch Camoufox browser
         run: poetry run python -m camoufox fetch
       - name: Run crawler
-        run: poetry run python -u -m event_crawler.main --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus|tuningevent' --output feed/events.json
+        run: >-
+          poetry run python -u -m event_crawler.main
+          --crawler-filter 'oldtimernaptar|autosnaptar|youngtimersclub|automagazin|programturizmus|tuningevent'
+          --output feed/events.json
+      - name: Download current Autosesemenyek events
+        run: >-
+          poetry run python -u -m event_crawler.main
+          --crawler-filter '^autosesemenyek$'
+          --output "$RUNNER_TEMP/autosesemenyek.json"
       - name: Run Event Deduplication
-        run: poetry run python -u -m event_clusterizer.main process -o feed/events-clusterized.json feed/events.json https://raw.githubusercontent.com/Sp3EdeR/autosesemenyek-advcrawler/refs/heads/autosesemenyek/events.json
+        run: >-
+          poetry run python -u -m event_clusterizer.main process
+          -o "$RUNNER_TEMP/events-clusterized.json"
+          feed/events.json "$RUNNER_TEMP/autosesemenyek.json"
       - name: Run Autosesemenyek Event Filter
-        run: poetry run python -u -m dedup_filter.main feed/events-clusterized.json feed/new_events.json
-      - name: Create full markdown feed
-        run: poetry run python -u -m feed_formatter.main feed/events.json feed/FULLFEED.md
-      - name: Create new markdown feed
-        run: poetry run python -u -m feed_formatter.main feed/new_events.json feed/README.md
+        run: >-
+          poetry run python -u -m dedup_filter.main
+          "$RUNNER_TEMP/events-clusterized.json" feed/new_events.json
       - name: Publish dashboard push trigger
         # Push workflows must also exist on the branch receiving the push.
         run: |
