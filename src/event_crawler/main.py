@@ -10,10 +10,12 @@ import re
 import sys
 import traceback
 from collections.abc import Callable
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated, Any, ClassVar, cast
 
 from camoufox.async_api import AsyncCamoufox
+from camoufox.geolocation import geoip_allowed, get_geolocation
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
@@ -85,10 +87,17 @@ class CrawlOrchestrator:
         crawler_filter: str | None = None,
         jobs: int = 4,
         headless: bool = True,
+        geoip: str | None = None,
     ) -> None:
         self._crawler_filter = re.compile(crawler_filter or ".*")
         self._jobs = jobs
         self._headless = headless
+        self._geoip = geoip
+        self._context_options: dict[str, Any] = {}
+        if geoip:
+            geoip_allowed()
+            # Playwright's context timezone can override Camoufox's launch-time GeoIP timezone.
+            self._context_options["timezone_id"] = get_geolocation(geoip).timezone
 
     async def _run_single_crawler(
         self,
@@ -101,7 +110,7 @@ class CrawlOrchestrator:
             context = None
             try:
                 print(f"[{id}] Creating browser context, attempt {i}/{CRAWL_RETRIES}...")
-                context = await browser.new_context()
+                context = await browser.new_context(**self._context_options)
                 print(f"[{id}] Creating page, attempt {i}/{CRAWL_RETRIES}...")
                 page = await context.new_page()
 
@@ -189,7 +198,8 @@ class CrawlOrchestrator:
                 print(f"[{crawler.id}] Spawning browser instance...")
                 async with AsyncCamoufox(
                     **crawler.build_camoufox_launch_options(),
-                    headless=self._headless
+                    headless=self._headless,
+                    geoip=self._geoip,
                 ) as browser:
                     results.append(await self._run_single_crawler(browser, crawler))
         else:
@@ -204,7 +214,8 @@ class CrawlOrchestrator:
                         print(f"[{crawler.id}] Spawning browser instance...")
                         browser_cm = AsyncCamoufox(
                             **crawler.build_camoufox_launch_options(),
-                            headless=self._headless
+                            headless=self._headless,
+                            geoip=self._geoip,
                         )
                         browser = await browser_cm.__aenter__()
                         result = await self._run_single_crawler(browser, crawler)
@@ -298,6 +309,14 @@ def main() -> None:
         default=True,
         help="Run Camoufox headless. Accepts true/false. (default: true).",
     )
+    def parse_geoip(value: str) -> str:
+        return str(ip_address(value))
+    parser.add_argument(
+        "--geoip",
+        type=parse_geoip,
+        help="Public exit IP for Camoufox GeoIP spoofing without a proxy. "
+             "Requires poetry install --with geoip.",
+    )
     args = parser.parse_args()
 
     try:
@@ -310,6 +329,7 @@ def main() -> None:
         crawler_filter=args.crawler_filter,
         jobs=args.jobs,
         headless=args.headless,
+        geoip=args.geoip,
     )
 
     result = asyncio.run(orchestrator.run())

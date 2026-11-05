@@ -1,0 +1,104 @@
+name: Test Crawlers
+
+on:
+  workflow_dispatch:     # Manual execution
+    inputs:
+      crawler_filter:
+        description: "Crawler ID regex (empty selects all crawlers)"
+        type: string
+        required: false
+        default: ""
+      use_nordvpn:
+        description: "Use NordVPN (Spain)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  POETRY_VERSION: "2.3.4"
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Cache Poetry installation
+        id: poetry-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/poetry
+            ~/.local/venv
+            ~/.local/VERSION
+          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}-dedupe
+      - name: Add Poetry to PATH
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Poetry
+        if: steps.poetry-cache.outputs.cache-hit != 'true'
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: 'poetry'
+      - name: Install dependencies
+        run: >-
+          poetry sync --no-interaction --extras=dedupe
+          ${{ inputs.use_nordvpn && '--with=geoip' || '' }}
+      - name: Resolve latest Camoufox version
+        id: camoufox-version
+        shell: bash
+        run: |
+          echo "version=$(poetry run python -c 'from camoufox.pkgman import CamoufoxFetcher; print(CamoufoxFetcher().verstr)')" >> "$GITHUB_OUTPUT"
+      - name: Cache Camoufox browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/camoufox
+          key: camoufox-${{ runner.os }}-${{ steps.camoufox-version.outputs.version }}-${{ inputs.use_nordvpn && '-geoip' || '' }}
+      - name: Fetch Camoufox browser
+        run: poetry run python -m camoufox fetch
+      - name: Connect NordVPN (ES)
+        id: vpn
+        if: inputs.use_nordvpn
+        uses: pau-vega/nordvpn-action@11c0bfa5a1884956c5edfb9da781178ef97b4baa
+        with:
+          region: ES
+          username: ${{ secrets.NORDVPN_SERVICE_USERNAME }}
+          password: ${{ secrets.NORDVPN_SERVICE_PASSWORD }}
+      - name: Run crawler
+        env:
+          CRAWLER_FILTER: ${{ inputs.crawler_filter }}
+          USE_NORDVPN: ${{ inputs.use_nordvpn }}
+          VPN_EXIT_IP: ${{ steps.vpn.outputs.exit-ip }}
+        shell: bash
+        run: |
+          geoip_args=()
+          if [[ "$USE_NORDVPN" == "true" ]]; then
+            geoip_args=(--geoip "$VPN_EXIT_IP")
+          fi
+          poetry run python -u -m event_crawler.main \
+            --crawler-filter "$CRAWLER_FILTER" \
+            "${geoip_args[@]}" --output feed/events.json
+      - name: Disconnect VPN
+        if: always() && inputs.use_nordvpn
+        uses: pau-vega/nordvpn-action/disconnect@11c0bfa5a1884956c5edfb9da781178ef97b4baa
+      - name: Download current Autosesemenyek events
+        run: >-
+          poetry run python -u -m event_crawler.main
+          --crawler-filter '^autosesemenyek$'
+          --output "$RUNNER_TEMP/autosesemenyek.json"
+      - name: Run Event Deduplication
+        run: >-
+          poetry run python -u -m event_clusterizer.main process
+          -o "$RUNNER_TEMP/events-clusterized.json"
+          feed/events.json "$RUNNER_TEMP/autosesemenyek.json"
+      - name: Run Autosesemenyek Event Filter
+        run: >-
+          poetry run python -u -m dedup_filter.main
+          "$RUNNER_TEMP/events-clusterized.json" feed/new_events.json

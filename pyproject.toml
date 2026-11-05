@@ -34,6 +34,12 @@ ocr = ["paddleocr", "paddlepaddle", "numpy", "opencv-python"]
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.16.9"
 
+[tool.poetry.group.geoip]
+optional = true
+
+[tool.poetry.group.geoip.dependencies]
+camoufox = { version = "^0.5.6", extras = ["geoip"] }
+
 [tool.poetry.scripts]
 crawl = "event_crawler.main:main"
 mkfeed = "feed_formatter.main:main"
