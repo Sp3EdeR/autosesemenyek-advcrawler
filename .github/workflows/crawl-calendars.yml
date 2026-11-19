@@ -26,25 +26,15 @@ jobs:
         with:
           ref: crawled
           path: crawled
-      - name: Cache Poetry installation
-        id: poetry-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/bin/poetry
-            ~/.local/venv
-            ~/.local/VERSION
-          key: poetry-${{ runner.os }}-${{ env.POETRY_VERSION }}
-      - name: Add Poetry to PATH
-        shell: bash
-        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install Poetry
-        if: steps.poetry-cache.outputs.cache-hit != 'true'
         uses: snok/install-poetry@v1
         with:
           version: ${{ env.POETRY_VERSION }}
+      - name: Add Poetry to PATH
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: 'poetry'
