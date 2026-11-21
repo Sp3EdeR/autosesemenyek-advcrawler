@@ -71,6 +71,22 @@ jobs:
         run: >-
           poetry run python -u -m dedup_filter.main
           "$RUNNER_TEMP/events-clusterized.json" feed/new_events.json
+      - name: Download Google events
+        run: >-
+          poetry run python -u -m event_crawler.main
+          --crawler-filter '^google$'
+          --output feed/google_events.json
+      - name: Run Google Event URL Filter
+        run: >-
+          poetry run python -u -m event_url_filter.main
+          --filter "$RUNNER_TEMP/autosesemenyek.json"
+          --output "$RUNNER_TEMP/new_google_events.json"
+          feed/google_events.json
+      - name: Concatenate new events
+        run: >-
+          poetry run python -u -m utilities.concat_events
+          --output feed/new_events.json
+          feed/new_events.json "$RUNNER_TEMP/new_google_events.json"
       - name: Publish dashboard push trigger
         # Push workflows must also exist on the branch receiving the push.
         run: |

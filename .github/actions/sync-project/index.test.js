@@ -105,6 +105,46 @@ test('required data fails before syncing; invalid optional end dates can be clea
   assert.equal(dateOnly(loadEvents([{ source: { ...event, dtend: 'bad' } }])[0].dtend), null);
 });
 
+test('only Google events may omit titles or start dates; malformed data still fails', () => {
+  for (const missing of [undefined, null, '']) {
+    for (const change of [{ summary: missing }, { dtstart: missing },
+      { summary: missing, dtstart: missing }]) {
+      const payload = { ...event, ...change };
+      const google = loadEvents([{ google_evt: payload }])[0];
+      assert.equal(google.summary, payload.summary || 'Untitled Google event');
+      assert.equal(dateOnly(google.dtstart), dateOnly(payload.dtstart));
+      assert.throws(() => loadEvents([{ source: payload }]), /requires a title/);
+      assert.throws(() => loadEvents([{ 'source, google_evt': payload }]), /requires a title/);
+    }
+  }
+  assert.equal(loadEvents([{ google_evt: { ...event, summary: '  ' } }])[0].summary,
+    'Untitled Google event');
+  for (const change of [{ summary: 42 }, { dtstart: 'bad' }, { dtstart: '2026-02-30' },
+    { dtstart: '2026:12- 05' }, { dtstart: 42 }])
+    assert.throws(() => loadEvents([{ google_evt: { ...event, ...change } }]), /requires a title/);
+  const incomplete = loadEvents(['first', 'second'].map(name =>
+    ({ google_evt: { url: `https://example.com/${name}` } })));
+  assert.notEqual(incomplete[0].id, incomplete[1].id);
+  assert.equal(loadEvents([{ google_evt: event }])[0].id, prepared.id);
+});
+
+test('syncs incomplete Google drafts without writing null dates and clears stale Start', async () => {
+  const google = loadEvents([{ google_evt: { url: event.url } }])[0];
+  const fresh = fixture();
+  const report = await sync(fresh.api, 'owner', 1, [google]);
+  assert.equal(report.events.length, 1);
+  assert.equal(fresh.calls.find(call => call.operation === 'Create').input.title,
+    'Untitled Google event');
+  assert.ok(!fresh.calls.some(call => call.input?.fieldId === 'Start'));
+  const current = item(google.id, 'Done');
+  current.start = { date: '2026-10-19' };
+  const returning = fixture([current]);
+  await sync(returning.api, 'owner', 1, [google]);
+  const start = returning.calls.find(call => call.input?.fieldId === 'Start');
+  assert.equal(start.operation, 'Clear');
+  assert.ok(!('value' in start.input));
+});
+
 test('creates drafts with Todo, dates and ID but no Assignees', async () => {
   const { api, calls } = fixture();
   const report = await sync(api, 'owner', 1, [prepared]);
