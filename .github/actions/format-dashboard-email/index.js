@@ -8,12 +8,13 @@ function escapeHtml(value) {
 
 // Sort by local wall-clock time; date-only values sort before timed ones.
 function sortKey(start) {
-  return start.replace(' ', 'T');
+  return (start ?? '').replace(' ', 'T');
 }
 
 function render(report, template, owner, number) {
   const events = report.events.filter(event => event.is_new === true)
-    .sort((a, b) => sortKey(a.start).localeCompare(sortKey(b.start)));
+    .sort((a, b) => Number(!a.start) - Number(!b.start) ||
+      sortKey(a.start).localeCompare(sortKey(b.start)));
   if (!events.length)
     return null;
   const url = `https://github.com/users/${encodeURIComponent(owner)}/projects/${encodeURIComponent(number)}`;
@@ -21,7 +22,8 @@ function render(report, template, owner, number) {
     project_url: escapeHtml(url),
     new_count: events.length,
     event_titles: events.map(event => {
-      const label = escapeHtml(`${event.start.slice(0, 10)} - ${event.summary}`);
+      const date = event.start ? `${event.start.slice(0, 10)} - ` : '';
+      const label = escapeHtml(`${date}${event.summary}`);
       return `<li style="margin:0 0 14px;overflow-wrap:anywhere;">${label}</li>`;
     }).join('\n')
   };

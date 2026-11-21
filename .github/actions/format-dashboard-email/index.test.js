@@ -35,6 +35,29 @@ test('encodes project inputs instead of allowing URL path or attribute injection
   assert.ok(html.includes('href="https://github.com/users/owner%2F%22/projects/7%3Fx%3D1%26y%3D2"'));
 });
 
+test('keeps undated new events after dated events and escapes their titles', () => {
+  const events = [
+    { is_new: true, summary: 'Missing <start> & date' },
+    { is_new: true, summary: 'Later', start: '2026-05-02' },
+    { is_new: true, summary: 'Null start', start: null },
+    { is_new: true, summary: 'Earlier', start: '2026-05-01' },
+    { is_new: true, summary: 'Empty start', start: '' },
+  ];
+  const html = render({ events }, template, 'owner', '7');
+  assert.match(html, /5 &uacute;j esem&eacute;ny/);
+  assert.equal((html.match(/<li /g) || []).length, 5);
+  const labels = [...html.matchAll(/<li [^>]*>(.*?)<\/li>/g)].map(match => match[1]);
+  assert.deepEqual(labels, ['2026-05-01 - Earlier', '2026-05-02 - Later',
+    'Missing &lt;start&gt; &amp; date', 'Null start', 'Empty start']);
+});
+
+test('renders a notification containing only an undated new event', () => {
+  const html = render({ events: [{ is_new: true, summary: 'Untitled Google event' }] },
+    template, 'owner', '7');
+  assert.match(html, /1 &uacute;j esem&eacute;ny/);
+  assert.match(html, /<li [^>]*>Untitled Google event<\/li>/);
+});
+
 test('does not render notifications for empty syncs or existing items', () => {
   assert.equal(render({ events: [] }, template, 'owner', '7'), null);
   const events = report.events.filter(event => !event.is_new);
@@ -49,7 +72,9 @@ test(`action entry point ${hasNewEvents ? 'writes HTML' : 'skips HTML without ne
     const reportFile = join(directory, 'report.json');
     const htmlFile = join(directory, 'email.html');
     const outputFile = join(directory, 'outputs');
-    const input = hasNewEvents ? report : { events: [{ is_new: false, summary: 'Existing', start: '2026-05-01' }] };
+    const input = hasNewEvents
+      ? { events: [...report.events, { is_new: true, summary: 'Undated Google event' }] }
+      : { events: [{ is_new: false, summary: 'Existing', start: '2026-05-01' }] };
     await writeFile(reportFile, JSON.stringify(input), 'utf8');
     execFileSync(process.execPath, [join(__dirname, 'index.js')], { env: { ...process.env,
       INPUT_REPORT_FILE: reportFile, INPUT_HTML_FILE: htmlFile, INPUT_PROJECT_OWNER: 'owner',

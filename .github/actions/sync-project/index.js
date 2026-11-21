@@ -27,8 +27,11 @@ function expired(start, end, cutoff) {
 
 /** Hash only identity fields; adding sources or changing event times keeps the ID. */
 function eventId(event) {
-  const identity = [normalize(event.summary), dateOnly(event.dtstart),
-    normalize(event.location || '')];
+  const identity = event.src_id === 'google_evt' ? [event.url] : [
+      normalize(event.summary || ''),
+      dateOnly(event.dtstart),
+      normalize(event.location || '')
+    ];
   return `event-v1-${createHash('sha256').update(JSON.stringify(identity)).digest('hex')}`;
 }
 
@@ -101,10 +104,21 @@ function loadEvents(raw) {
     throw new Error('Events JSON must contain an array.');
   return raw.flatMap(group => Object.entries(group).map(([src_id, payload]) => {
     const event = { ...payload, src_id };
-    if (typeof event.summary !== 'string' || !event.summary.trim() || !dateOnly(event.dtstart))
+    const google = src_id === 'google_evt';
+    const missingSummary = event.summary == null ||
+      (typeof event.summary === 'string' && !event.summary.trim());
+    const missingStart = event.dtstart == null || event.dtstart === '';
+    if ((!google || !missingSummary) &&
+        (typeof event.summary !== 'string' || !event.summary.trim()) ||
+        (!google || !missingStart) && !dateOnly(event.dtstart))
       throw new Error(`Event ${src_id} requires a title and valid start date.`);
     const id = eventId(event);
-    return { ...event, id, body: description(event, id) };
+    return {
+      ...event,
+      summary: missingSummary ? 'Untitled Google event' : event.summary,
+      id,
+      body: description(event, id)
+    };
   }));
 }
 
@@ -376,7 +390,7 @@ async function sync(api, owner, number, events) {
       mutations.setField(item.id, 'ID', { text: event.id });
     const start = dateOnly(event.dtstart);
     if ((item.start?.date || null) !== start)
-      mutations.setField(item.id, 'Start', { date: start });
+      mutations.setField(item.id, 'Start', start ? { date: start } : null);
     const end = dateOnly(event.dtend);
     if ((item.end?.date || null) !== end)
       mutations.setField(item.id, 'End', end ? { date: end } : null);

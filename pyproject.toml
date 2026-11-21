@@ -9,6 +9,7 @@ packages = [
     { include = "event_crawler", from = "src" },
     { include = "feed_formatter", from = "src" },
     { include = "dedup_filter", from = "src" },
+    { include = "event_url_filter", from = "src" },
     { include = "utilities", from = "src" }
 ]
 
@@ -45,6 +46,8 @@ crawl = "event_crawler.main:main"
 mkfeed = "feed_formatter.main:main"
 event-clusterizer = "event_clusterizer.main:main"
 dedup-filter = "dedup_filter.main:main"
+event-url-filter = "event_url_filter.main:main"
+concat-events = "utilities.concat_events:main"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]
